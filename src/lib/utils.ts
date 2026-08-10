@@ -10,49 +10,95 @@ import type { SpotifyTrackItem, SpotifyArtistItem, SpotifyPlaylistItem, Recently
 // ============================================================
 
 export function mapTrack(raw: SpotifyTrackRaw): SpotifyTrackItem {
+  if (!raw) {
+    return {
+      id: '',
+      name: 'Unknown Track',
+      uri: '',
+      artists: [],
+      album: { id: '', name: 'Unknown Album', images: [] },
+      durationMs: 0,
+      popularity: 0,
+      previewUrl: null,
+      externalUrl: '',
+    };
+  }
+
+  const artists = Array.isArray(raw.artists)
+    ? raw.artists.map((a) => ({ id: a?.id || '', name: a?.name || 'Unknown Artist' }))
+    : [];
+
+  const images = Array.isArray(raw.album?.images) ? raw.album.images : [];
+
   return {
-    id: raw.id,
-    name: raw.name,
-    uri: raw.uri,
-    artists: raw.artists.map((a) => ({ id: a.id, name: a.name })),
+    id: raw.id || '',
+    name: raw.name || 'Untitled Track',
+    uri: raw.uri || '',
+    artists,
     album: {
-      id: raw.album.id,
-      name: raw.album.name,
-      images: raw.album.images,
+      id: raw.album?.id || '',
+      name: raw.album?.name || 'Unknown Album',
+      images,
     },
-    durationMs: raw.duration_ms,
-    popularity: raw.popularity,
-    previewUrl: raw.preview_url,
-    externalUrl: raw.external_urls.spotify,
+    durationMs: raw.duration_ms || 0,
+    popularity: raw.popularity || 0,
+    previewUrl: raw.preview_url || null,
+    externalUrl: raw.external_urls?.spotify || '',
   };
 }
 
 export function mapArtist(raw: SpotifyArtistRaw): SpotifyArtistItem {
+  if (!raw) {
+    return {
+      id: '',
+      name: 'Unknown Artist',
+      genres: [],
+      images: [],
+      popularity: 0,
+      followers: 0,
+      externalUrl: '',
+    };
+  }
+
   return {
-    id: raw.id,
-    name: raw.name,
-    genres: raw.genres,
-    images: raw.images,
-    popularity: raw.popularity,
-    followers: raw.followers.total,
-    externalUrl: raw.external_urls.spotify,
+    id: raw.id || '',
+    name: raw.name || 'Unknown Artist',
+    genres: Array.isArray(raw.genres) ? raw.genres : [],
+    images: Array.isArray(raw.images) ? raw.images : [],
+    popularity: raw.popularity || 0,
+    followers: raw.followers?.total || 0,
+    externalUrl: raw.external_urls?.spotify || '',
   };
 }
 
 export function mapPlaylist(raw: SpotifyPlaylistRaw): SpotifyPlaylistItem {
+  if (!raw) {
+    return {
+      id: '',
+      name: 'Unknown Playlist',
+      description: '',
+      images: [],
+      owner: { id: '', displayName: 'Unknown' },
+      trackCount: 0,
+      isPublic: false,
+      isCollaborative: false,
+      externalUrl: '',
+    };
+  }
+
   return {
-    id: raw.id,
-    name: raw.name,
+    id: raw.id || '',
+    name: raw.name || 'Untitled Playlist',
     description: raw.description || '',
-    images: raw.images,
+    images: Array.isArray(raw.images) ? raw.images : [],
     owner: {
-      id: raw.owner.id,
-      displayName: raw.owner.display_name || raw.owner.id,
+      id: raw.owner?.id || '',
+      displayName: raw.owner?.display_name || raw.owner?.id || 'Unknown Owner',
     },
-    trackCount: raw.tracks.total,
+    trackCount: raw.tracks?.total || 0,
     isPublic: raw.public ?? false,
-    isCollaborative: raw.collaborative,
-    externalUrl: raw.external_urls.spotify,
+    isCollaborative: raw.collaborative ?? false,
+    externalUrl: raw.external_urls?.spotify || '',
   };
 }
 
@@ -69,17 +115,26 @@ export function buildActivitySummary(
   const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
   let weekCount = 0;
 
-  for (const item of recentlyPlayed) {
-    const date = new Date(item.playedAt);
-    const hour = date.getHours();
-    const dayKey = date.toISOString().split('T')[0];
+  if (Array.isArray(recentlyPlayed)) {
+    for (const item of recentlyPlayed) {
+      if (!item || !item.playedAt) continue;
+      const date = new Date(item.playedAt);
+      if (isNaN(date.getTime())) continue;
 
-    byHour[hour] = (byHour[hour] || 0) + 1;
-    byDay[dayKey] = (byDay[dayKey] || 0) + 1;
+      const hour = date.getHours();
+      const dayKey = date.toISOString().split('T')[0];
 
-    if (date >= weekAgo) {
-      weekCount++;
-      item.track.artists.forEach((a) => artistSet.add(a.id));
+      byHour[hour] = (byHour[hour] || 0) + 1;
+      byDay[dayKey] = (byDay[dayKey] || 0) + 1;
+
+      if (date >= weekAgo) {
+        weekCount++;
+        if (item?.track?.artists && Array.isArray(item.track.artists)) {
+          item.track.artists.forEach((a) => {
+            if (a?.id) artistSet.add(a.id);
+          });
+        }
+      }
     }
   }
 

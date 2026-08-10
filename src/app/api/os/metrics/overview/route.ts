@@ -13,12 +13,8 @@ export async function GET() {
   if (!auth) return unauthorizedResponse();
 
   try {
-    // Fetch all data in parallel
-    const [
-      shortTracks, mediumTracks, longTracks,
-      shortArtists, mediumArtists, longArtists,
-      recentRaw,
-    ] = await Promise.all([
+    // Fetch all data in parallel safely with Promise.allSettled
+    const results = await Promise.allSettled([
       getTopTracks(auth.accessToken, 'short_term', 20),
       getTopTracks(auth.accessToken, 'medium_term', 20),
       getTopTracks(auth.accessToken, 'long_term', 20),
@@ -27,6 +23,20 @@ export async function GET() {
       getTopArtists(auth.accessToken, 'long_term', 20),
       getRecentlyPlayed(auth.accessToken, 50),
     ]);
+
+    const getValue = <T>(res: PromiseSettledResult<T>, fallback: T): T => {
+      if (res.status === 'fulfilled') return res.value;
+      console.error('[Overview Route] Endpoint fetch failed:', res.reason?.message || res.reason);
+      return fallback;
+    };
+
+    const shortTracks = getValue(results[0], []).filter(Boolean);
+    const mediumTracks = getValue(results[1], []).filter(Boolean);
+    const longTracks = getValue(results[2], []).filter(Boolean);
+    const shortArtists = getValue(results[3], []).filter(Boolean);
+    const mediumArtists = getValue(results[4], []).filter(Boolean);
+    const longArtists = getValue(results[5], []).filter(Boolean);
+    const recentRaw = getValue(results[6], []).filter((item) => item && item.track);
 
     const recentlyPlayed = recentRaw.map((item: SpotifyRecentlyPlayedRaw) => ({
       track: mapTrack(item.track),

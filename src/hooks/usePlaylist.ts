@@ -2,9 +2,8 @@
 
 import useSWR from 'swr';
 import { useCallback, useState } from 'react';
-import type { SpotifyPlaylistItem } from '@/types';
-
-const fetcher = (url: string) => fetch(url).then((r) => r.json()).then((r) => r.data);
+import { fetcher } from '@/lib/fetcher';
+import type { SpotifyPlaylistItem, SpotifyTrackItem, PlaylistAnalysis } from '@/types';
 
 export function usePlaylists() {
   return useSWR<SpotifyPlaylistItem[]>('/api/lab/playlists', fetcher, {
@@ -13,7 +12,7 @@ export function usePlaylists() {
 }
 
 export function usePlaylistDetail(playlistId: string | null) {
-  return useSWR(
+  return useSWR<SpotifyPlaylistItem & { tracks: (SpotifyTrackItem & { addedAt: string })[] }>(
     playlistId ? `/api/lab/playlists/${playlistId}` : null,
     fetcher,
     { revalidateOnFocus: false },
@@ -21,7 +20,7 @@ export function usePlaylistDetail(playlistId: string | null) {
 }
 
 export function usePlaylistAnalysis(playlistId: string | null) {
-  return useSWR(
+  return useSWR<PlaylistAnalysis>(
     playlistId ? `/api/lab/analyze/${playlistId}` : null,
     fetcher,
     { revalidateOnFocus: false },

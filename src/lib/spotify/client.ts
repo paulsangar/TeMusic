@@ -90,7 +90,7 @@ export async function getTopTracks(
     accessToken,
     `/me/top/tracks?${params}`,
   );
-  return response.items;
+  return response?.items || [];
 }
 
 export async function getTopArtists(
@@ -106,7 +106,7 @@ export async function getTopArtists(
     accessToken,
     `/me/top/artists?${params}`,
   );
-  return response.items;
+  return response?.items || [];
 }
 
 export async function getRecentlyPlayed(
@@ -120,7 +120,7 @@ export async function getRecentlyPlayed(
     accessToken,
     `/me/player/recently-played?${params}`,
   );
-  return response.items;
+  return response?.items || [];
 }
 
 // ============================================================

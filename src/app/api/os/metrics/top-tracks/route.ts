@@ -18,7 +18,7 @@ export async function GET(request: NextRequest) {
   try {
     const tracks = await getTopTracks(auth.accessToken, timeRange, limit);
     return Response.json({
-      data: tracks.map(mapTrack),
+      data: (tracks || []).filter(Boolean).map(mapTrack),
       error: null,
       status: 200,
     });

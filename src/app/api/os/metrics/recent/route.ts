@@ -16,8 +16,9 @@ export async function GET(request: NextRequest) {
 
   try {
     const recent = await getRecentlyPlayed(auth.accessToken, limit);
+    const validItems = (recent || []).filter((item) => item && item.track);
     return Response.json({
-      data: recent.map((item) => ({
+      data: validItems.map((item) => ({
         track: mapTrack(item.track),
         playedAt: item.played_at,
       })),

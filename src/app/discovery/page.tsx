@@ -8,7 +8,7 @@ import Badge from '@/components/ui/Badge';
 import { SkeletonList, SkeletonCard } from '@/components/ui/Skeleton';
 import type { UnexploredArtist, SpotifyPlaylistItem, DiscoveryHighlight } from '@/types';
 
-const fetcher = (url: string) => fetch(url).then((r) => r.json()).then((r) => r.data);
+import { fetcher } from '@/lib/fetcher';
 
 export default function DiscoveryPage() {
   const { data: unexplored, isLoading: loadingUnexplored } = useSWR<UnexploredArtist[]>('/api/discovery/unexplored', fetcher, { revalidateOnFocus: false });

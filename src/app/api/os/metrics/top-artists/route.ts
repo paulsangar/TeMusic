@@ -18,7 +18,7 @@ export async function GET(request: NextRequest) {
   try {
     const artists = await getTopArtists(auth.accessToken, timeRange, limit);
     return Response.json({
-      data: artists.map(mapArtist),
+      data: (artists || []).filter(Boolean).map(mapArtist),
       error: null,
       status: 200,
     });

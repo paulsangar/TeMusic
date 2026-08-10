@@ -23,7 +23,7 @@ export default function HistoryPage() {
           <SkeletonList count={8} />
         ) : history && history.length > 0 ? (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-            {history.map((snapshot: { id: string; captured_at: string; time_range: string; top_tracks: { length?: number }[]; top_artists: { length?: number }[] }) => (
+            {history.map((snapshot) => (
               <div
                 key={snapshot.id}
                 className="glass-light"

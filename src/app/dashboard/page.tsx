@@ -179,7 +179,7 @@ function ActivityBar({ data }: { data: Record<number, number> }) {
 }
 
 export default function DashboardPage() {
-  const { data: overview, isLoading, error } = useMetricsOverview();
+  const { data: overview, isLoading, error, mutate } = useMetricsOverview();
   const [tracksRange, setTracksRange] = useState<TimeRange>('short_term');
   const [artistsRange, setArtistsRange] = useState<TimeRange>('short_term');
   const [isSaving, setIsSaving] = useState(false);
@@ -217,8 +217,19 @@ export default function DashboardPage() {
     return (
       <div>
         <Header title="Dashboard" module="os" />
-        <Card>
-          <p style={{ color: 'var(--error)' }}>Failed to load metrics. Please try refreshing.</p>
+        <Card padding="lg">
+          <div style={{ textAlign: 'center', padding: '32px 16px' }}>
+            <div style={{ fontSize: '40px', marginBottom: '12px' }}>⚠️</div>
+            <h2 style={{ fontSize: '18px', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '8px' }}>
+              Failed to load listening metrics
+            </h2>
+            <p style={{ fontSize: '14px', color: 'var(--text-secondary)', marginBottom: '24px', maxWidth: '400px', margin: '0 auto 24px' }}>
+              {error instanceof Error ? error.message : 'Spotify API or server error occurred.'}
+            </p>
+            <Button variant="primary" size="md" onClick={() => mutate()}>
+              🔄 Retry Loading
+            </Button>
+          </div>
         </Card>
       </div>
     );
@@ -322,6 +333,10 @@ export default function DashboardPage() {
           </div>
           {isLoading ? (
             <SkeletonList count={10} />
+          ) : getTracksForRange().length === 0 ? (
+            <p style={{ fontSize: '13px', color: 'var(--text-tertiary)', padding: '24px', textAlign: 'center' }}>
+              No top tracks found for this period.
+            </p>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', maxHeight: '500px', overflowY: 'auto' }}>
               {getTracksForRange().map((track, i) => (
@@ -359,6 +374,10 @@ export default function DashboardPage() {
           </div>
           {isLoading ? (
             <SkeletonList count={10} />
+          ) : getArtistsForRange().length === 0 ? (
+            <p style={{ fontSize: '13px', color: 'var(--text-tertiary)', padding: '24px', textAlign: 'center' }}>
+              No top artists found for this period.
+            </p>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', maxHeight: '500px', overflowY: 'auto' }}>
               {getArtistsForRange().map((artist, i) => (
@@ -376,6 +395,10 @@ export default function DashboardPage() {
         </h2>
         {isLoading ? (
           <SkeletonList count={8} />
+        ) : !overview?.recentlyPlayed || overview.recentlyPlayed.length === 0 ? (
+          <p style={{ fontSize: '13px', color: 'var(--text-tertiary)', padding: '24px', textAlign: 'center' }}>
+            No recently played tracks found.
+          </p>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', maxHeight: '400px', overflowY: 'auto' }}>
             {overview?.recentlyPlayed.slice(0, 20).map((item, i) => (
