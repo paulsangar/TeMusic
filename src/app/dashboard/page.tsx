@@ -63,9 +63,6 @@ function TrackRow({ track, index }: { track: SpotifyTrackItem; index: number }) 
         borderRadius: 'var(--radius-sm)',
         textDecoration: 'none',
         transition: 'background var(--transition-fast)',
-        animationDelay: `${index * 50}ms`,
-        opacity: 0,
-        animationFillMode: 'forwards',
       }}
       onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--bg-surface-hover)'; }}
       onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
@@ -113,9 +110,6 @@ function ArtistRow({ artist, index }: { artist: SpotifyArtistItem; index: number
         borderRadius: 'var(--radius-sm)',
         textDecoration: 'none',
         transition: 'background var(--transition-fast)',
-        animationDelay: `${index * 50}ms`,
-        opacity: 0,
-        animationFillMode: 'forwards',
       }}
       onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--bg-surface-hover)'; }}
       onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
@@ -412,9 +406,6 @@ export default function DashboardPage() {
                   padding: '8px 12px',
                   borderRadius: 'var(--radius-sm)',
                   transition: 'background var(--transition-fast)',
-                  animationDelay: `${i * 30}ms`,
-                  opacity: 0,
-                  animationFillMode: 'forwards',
                 }}
                 onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--bg-surface-hover)'; }}
                 onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}

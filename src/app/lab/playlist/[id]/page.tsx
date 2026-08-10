@@ -10,7 +10,7 @@ import { usePlaylistDetail, usePlaylistAnalysis, usePlaylistActions } from '@/ho
 
 export default function PlaylistDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
-  const { data: playlist, isLoading: loadingPlaylist } = usePlaylistDetail(id);
+  const { data: playlist, isLoading: loadingPlaylist, error: errorPlaylist, mutate: mutatePlaylist } = usePlaylistDetail(id);
   const { data: analysis, isLoading: loadingAnalysis } = usePlaylistAnalysis(id);
   const { cleanPlaylist, isLoading: actionLoading } = usePlaylistActions();
   const [cleanResult, setCleanResult] = useState<{ newPlaylistName: string; removedCount: number } | null>(null);
@@ -25,6 +25,28 @@ export default function PlaylistDetailPage({ params }: { params: Promise<{ id: s
   };
 
   const isLoading = loadingPlaylist || loadingAnalysis;
+
+  if (errorPlaylist) {
+    return (
+      <div>
+        <Header title="Playlist Detail" module="lab" />
+        <Card padding="lg">
+          <div style={{ textAlign: 'center', padding: '32px 16px' }}>
+            <div style={{ fontSize: '40px', marginBottom: '12px' }}>⚠️</div>
+            <h2 style={{ fontSize: '18px', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '8px' }}>
+              Failed to load playlist details
+            </h2>
+            <p style={{ fontSize: '14px', color: 'var(--text-secondary)', marginBottom: '24px' }}>
+              {errorPlaylist instanceof Error ? errorPlaylist.message : 'Could not fetch playlist from Spotify.'}
+            </p>
+            <Button variant="primary" size="md" onClick={() => mutatePlaylist()}>
+              🔄 Retry Loading
+            </Button>
+          </div>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div>

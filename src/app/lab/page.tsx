@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import Link from 'next/link';
 import Header from '@/components/layout/Header';
 import Card from '@/components/ui/Card';
@@ -78,13 +78,33 @@ function PlaylistRow({ playlist }: { playlist: SpotifyPlaylistItem }) {
 }
 
 export default function LabPage() {
-  const { data: playlists, isLoading, error } = usePlaylists();
+  const { data: playlists, isLoading, error, mutate } = usePlaylists();
+  const [searchQuery, setSearchQuery] = useState('');
+
+  const filteredPlaylists = playlists?.filter(
+    (p) =>
+      p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (p.description && p.description.toLowerCase().includes(searchQuery.toLowerCase())),
+  );
 
   if (error) {
     return (
       <div>
         <Header title="Playlists" module="lab" />
-        <Card><p style={{ color: 'var(--error)' }}>Failed to load playlists.</p></Card>
+        <Card padding="lg">
+          <div style={{ textAlign: 'center', padding: '32px 16px' }}>
+            <div style={{ fontSize: '40px', marginBottom: '12px' }}>⚠️</div>
+            <h2 style={{ fontSize: '18px', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '8px' }}>
+              Failed to load playlists
+            </h2>
+            <p style={{ fontSize: '14px', color: 'var(--text-secondary)', marginBottom: '24px' }}>
+              {error instanceof Error ? error.message : 'Could not fetch your Spotify playlists.'}
+            </p>
+            <Button variant="primary" size="md" onClick={() => mutate()}>
+              🔄 Retry Loading
+            </Button>
+          </div>
+        </Card>
       </div>
     );
   }
@@ -141,20 +161,62 @@ export default function LabPage() {
         </div>
       )}
 
-      {/* Playlist List */}
+      {/* Playlist List with Search */}
       <Card padding="md">
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px', gap: '16px', flexWrap: 'wrap' }}>
           <h2 style={{ fontSize: '16px', fontWeight: 600 }}>Your Playlists</h2>
-          <Badge variant="lab">{playlists?.length ?? '...'} playlists</Badge>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flex: 1, maxWidth: '320px' }}>
+            <div style={{ position: 'relative', width: '100%' }}>
+              <input
+                type="text"
+                placeholder="🔍 Search playlists..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                style={{
+                  width: '100%',
+                  padding: '8px 14px',
+                  borderRadius: 'var(--radius-full)',
+                  border: '1px solid var(--border-default)',
+                  background: 'var(--bg-surface)',
+                  color: 'var(--text-primary)',
+                  fontSize: '13px',
+                  outline: 'none',
+                }}
+              />
+              {searchQuery && (
+                <button
+                  onClick={() => setSearchQuery('')}
+                  style={{
+                    position: 'absolute',
+                    right: '12px',
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                    background: 'none',
+                    border: 'none',
+                    color: 'var(--text-tertiary)',
+                    cursor: 'pointer',
+                    fontSize: '12px',
+                  }}
+                >
+                  ✕
+                </button>
+              )}
+            </div>
+            <Badge variant="lab">{filteredPlaylists?.length ?? 0} found</Badge>
+          </div>
         </div>
         {isLoading ? (
           <SkeletonList count={10} />
-        ) : (
+        ) : filteredPlaylists && filteredPlaylists.length > 0 ? (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-            {playlists?.map((playlist) => (
-              <PlaylistRow key={playlist.id} playlist={playlist} />
+            {filteredPlaylists.map((playlist, idx) => (
+              <PlaylistRow key={`${playlist.id}-${idx}`} playlist={playlist} />
             ))}
           </div>
+        ) : (
+          <p style={{ color: 'var(--text-tertiary)', textAlign: 'center', padding: '32px 0' }}>
+            {searchQuery ? `No playlists matching "${searchQuery}"` : 'No playlists found in your Spotify account.'}
+          </p>
         )}
       </Card>
     </div>
