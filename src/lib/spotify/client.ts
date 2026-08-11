@@ -198,7 +198,7 @@ export async function getPlaylist(
 
 export async function createPlaylist(
   accessToken: string,
-  userId: string,
+  _userId: string,
   name: string,
   options: {
     description?: string;
@@ -206,9 +206,11 @@ export async function createPlaylist(
     collaborative?: boolean;
   } = {},
 ): Promise<SpotifyPlaylistRaw> {
+  // Use /me/playlists (modern endpoint) — /users/{id}/playlists returns 403
+  // when the Spotify app is in Development Mode or when IDs don't match exactly.
   return spotifyFetch<SpotifyPlaylistRaw>(
     accessToken,
-    `/users/${userId}/playlists`,
+    `/me/playlists`,
     {
       method: 'POST',
       body: JSON.stringify({

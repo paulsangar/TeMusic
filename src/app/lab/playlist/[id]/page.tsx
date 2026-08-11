@@ -121,7 +121,7 @@ export default function PlaylistDetailPage({ params }: { params: Promise<{ id: s
         <h3 style={{ fontSize: '16px', fontWeight: 600, marginBottom: '16px' }}>Tracks</h3>
         {isLoading ? (
           <SkeletonList count={15} />
-        ) : playlist?.tracks ? (
+        ) : playlist?.tracks && playlist.tracks.length > 0 ? (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', maxHeight: '600px', overflowY: 'auto' }}>
             {playlist.tracks.map((track: { id: string; name: string; artists: { name: string }[]; album: { images: { url: string }[] }; popularity: number; externalUrl: string }, i: number) => (
               <a
@@ -154,7 +154,11 @@ export default function PlaylistDetailPage({ params }: { params: Promise<{ id: s
             ))}
           </div>
         ) : (
-          <p style={{ color: 'var(--text-tertiary)' }}>No tracks found</p>
+          <div style={{ padding: '32px 16px', textAlign: 'center', background: 'var(--bg-surface)', borderRadius: 'var(--radius-md)' }}>
+            <div style={{ fontSize: '32px', marginBottom: '12px' }}>📭</div>
+            <h3 style={{ fontSize: '16px', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '8px' }}>Esta playlist está vacía</h3>
+            <p style={{ color: 'var(--text-secondary)', fontSize: '14px' }}>No pudimos encontrar canciones o la playlist original no tiene tracks.</p>
+          </div>
         )}
       </Card>
     </div>

@@ -35,6 +35,9 @@ export async function GET(
     const playlist = results[0].value;
     const trackItems = results[1].status === 'fulfilled' ? (results[1].value || []) : [];
 
+    // Diagnostic logging
+    console.log(`[Playlist Detail] id=${id}, playlist.name=${playlist?.name}, playlist.tracks.total=${playlist?.tracks?.total}, trackItems.length=${trackItems.length}`);
+
     if (results[1].status === 'rejected') {
       console.error('[Playlist Detail] getPlaylistTracks failed:', results[1].reason?.message || results[1].reason);
     }
@@ -47,9 +50,12 @@ export async function GET(
         addedAt: item.added_at || '',
       }));
 
+    console.log(`[Playlist Detail] After filtering: ${tracks.length} valid tracks out of ${trackItems.length} raw items`);
+
     return Response.json({
       data: {
         ...mapPlaylist(playlist),
+        trackCount: tracks.length,  // override with real loaded count
         tracks,
       },
       error: null,
