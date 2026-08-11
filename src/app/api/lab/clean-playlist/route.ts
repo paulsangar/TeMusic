@@ -24,14 +24,39 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Get original playlist and tracks
-    const [originalPlaylist, trackItems] = await Promise.all([
+    // Get original playlist and tracks with resilience
+    const results = await Promise.allSettled([
       getPlaylist(auth.accessToken, playlistId),
       getPlaylistTracks(auth.accessToken, playlistId),
     ]);
 
-    // Filter tracks
-    let tracks = trackItems.filter((item) => item.track !== null);
+    if (results[0].status === 'rejected') {
+      const reason = results[0].reason?.message || String(results[0].reason);
+      console.error('[Clean Playlist] getPlaylist failed:', reason);
+      return Response.json(
+        { data: null, error: `Failed to load playlist: ${reason}`, status: 500 },
+        { status: 500 },
+      );
+    }
+
+    if (results[1].status === 'rejected') {
+      const reason = results[1].reason?.message || String(results[1].reason);
+      console.error('[Clean Playlist] getPlaylistTracks failed:', reason);
+      return Response.json(
+        { data: null, error: `Failed to load tracks: ${reason}`, status: 500 },
+        { status: 500 },
+      );
+    }
+
+    const originalPlaylist = results[0].value;
+    const allTrackItems = results[1].value || [];
+
+    // Defensive: filter null items AND null tracks
+    let tracks = allTrackItems.filter(
+      (item) => item != null && item.track != null,
+    );
+
+    const originalCount = tracks.length;
 
     if (removeDuplicates) {
       const seen = new Set<string>();
@@ -44,7 +69,7 @@ export async function POST(request: NextRequest) {
     }
 
     if (removeUnpopular) {
-      tracks = tracks.filter((item) => item.track!.popularity >= popularityThreshold);
+      tracks = tracks.filter((item) => (item.track!.popularity || 0) >= popularityThreshold);
     }
 
     // Create new playlist
@@ -54,7 +79,7 @@ export async function POST(request: NextRequest) {
       auth.user.spotify_id,
       cleanedName,
       {
-        description: `Cleaned version of "${originalPlaylist.name}" by TeMusc LAB. Original: ${trackItems.length} tracks → Cleaned: ${tracks.length} tracks.`,
+        description: `Cleaned version of "${originalPlaylist.name}" by TeMusc LAB. Original: ${originalCount} tracks → Cleaned: ${tracks.length} tracks.`,
         isPublic: false,
       },
     );
@@ -69,19 +94,21 @@ export async function POST(request: NextRequest) {
       data: {
         newPlaylistId: newPlaylist.id,
         newPlaylistName: cleanedName,
-        originalTrackCount: trackItems.length,
+        originalTrackCount: originalCount,
         cleanedTrackCount: tracks.length,
-        removedCount: trackItems.length - tracks.length,
+        removedCount: originalCount - tracks.length,
         tracks: tracks.map((item) => mapTrack(item.track!)),
       },
       error: null,
       status: 201,
     }, { status: 201 });
   } catch (error) {
-    console.error('Clean playlist error:', error);
+    const msg = error instanceof Error ? error.message : String(error);
+    console.error('[Clean Playlist] Unexpected error:', msg);
     return Response.json(
-      { data: null, error: 'Failed to clean playlist', status: 500 },
+      { data: null, error: `Failed to clean playlist: ${msg}`, status: 500 },
       { status: 500 },
     );
   }
 }
+

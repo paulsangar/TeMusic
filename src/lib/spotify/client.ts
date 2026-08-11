@@ -170,12 +170,20 @@ export async function getPlaylistTracks(
   let url: string | null = `/playlists/${playlistId}/tracks?limit=100`;
 
   while (url) {
-    const response: SpotifyPaginatedResponse<SpotifyPlaylistTrackRaw> = await spotifyFetch(
-      accessToken,
-      url,
-    );
-    allTracks.push(...response.items);
-    url = response.next;
+    try {
+      const response: SpotifyPaginatedResponse<SpotifyPlaylistTrackRaw> = await spotifyFetch(
+        accessToken,
+        url,
+      );
+      // Defensive: filter null/undefined items (deleted tracks, podcast episodes)
+      const validItems = (response.items || []).filter((item) => item != null);
+      allTracks.push(...validItems);
+      url = response.next;
+    } catch (pageError) {
+      // If a page fails, log and return what we have so far rather than losing everything
+      console.error(`[getPlaylistTracks] Pagination error at ${url}:`, pageError instanceof Error ? pageError.message : pageError);
+      break;
+    }
   }
 
   return allTracks;
