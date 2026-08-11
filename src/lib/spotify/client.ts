@@ -167,7 +167,8 @@ export async function getPlaylistTracks(
   playlistId: string,
 ): Promise<SpotifyPlaylistTrackRaw[]> {
   const allTracks: SpotifyPlaylistTrackRaw[] = [];
-  let url: string | null = `/playlists/${playlistId}/tracks?limit=100`;
+  // Spotify recently replaced the /tracks endpoint with /items for playlists
+  let url: string | null = `/playlists/${playlistId}/items?limit=100`;
 
   while (url) {
     try {
@@ -234,7 +235,8 @@ export async function addTracksToPlaylist(
     const batch = trackUris.slice(i, i + batchSize);
     await spotifyFetch(
       accessToken,
-      `/playlists/${playlistId}/tracks`,
+      // Spotify recently replaced the /tracks endpoint with /items for playlists
+      `/playlists/${playlistId}/items`,
       {
         method: 'POST',
         body: JSON.stringify({ uris: batch }),
