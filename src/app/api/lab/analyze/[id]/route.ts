@@ -18,25 +18,45 @@ export async function GET(
   const { id } = await params;
 
   try {
-    const [playlist, trackItems] = await Promise.all([
+    const results = await Promise.allSettled([
       getPlaylist(auth.accessToken, id),
       getPlaylistTracks(auth.accessToken, id),
     ]);
 
-    const validTracks = trackItems.filter((item) => item.track !== null);
+    if (results[0].status === 'rejected') {
+      const reason = results[0].reason?.message || String(results[0].reason);
+      console.error('[Analyze] getPlaylist failed:', reason);
+      return Response.json(
+        { data: null, error: `Failed to analyze playlist: ${reason}`, status: 500 },
+        { status: 500 },
+      );
+    }
+
+    const playlist = results[0].value;
+    const trackItems = results[1].status === 'fulfilled' ? (results[1].value || []) : [];
+
+    if (results[1].status === 'rejected') {
+      console.error('[Analyze] getPlaylistTracks failed:', results[1].reason?.message || results[1].reason);
+    }
+
+    // Defensive filtering: skip null items AND null tracks (deleted, podcasts)
+    const validTracks = trackItems.filter(
+      (item) => item != null && item.track != null,
+    );
 
     // Find duplicates
     const trackCounts = new Map<string, { name: string; artist: string; uris: string[] }>();
     for (const item of validTracks) {
       const track = item.track!;
-      const key = `${track.name.toLowerCase()}|${track.artists[0]?.name.toLowerCase()}`;
+      const artistName = track.artists?.[0]?.name || 'Unknown';
+      const key = `${(track.name || '').toLowerCase()}|${artistName.toLowerCase()}`;
       const existing = trackCounts.get(key);
       if (existing) {
         existing.uris.push(track.uri);
       } else {
         trackCounts.set(key, {
-          name: track.name,
-          artist: track.artists[0]?.name || 'Unknown',
+          name: track.name || 'Unknown',
+          artist: artistName,
           uris: [track.uri],
         });
       }
@@ -56,10 +76,8 @@ export async function GET(
 
     // Genre distribution (from artist names as proxy — full genre analysis needs artist lookups)
     const genreDistribution: Record<string, number> = {};
-    // We'd need to fetch artist details for real genre data.
-    // For now, count artist frequency as a proxy.
     for (const item of validTracks) {
-      const artistName = item.track!.artists[0]?.name || 'Unknown';
+      const artistName = item.track!.artists?.[0]?.name || 'Unknown';
       genreDistribution[artistName] = (genreDistribution[artistName] || 0) + 1;
     }
 
@@ -83,10 +101,12 @@ export async function GET(
       status: 200,
     });
   } catch (error) {
-    console.error('Analyze playlist error:', error);
+    const msg = error instanceof Error ? error.message : String(error);
+    console.error('[Analyze] Unexpected error:', msg);
     return Response.json(
-      { data: null, error: 'Failed to analyze playlist', status: 500 },
+      { data: null, error: `Failed to analyze playlist: ${msg}`, status: 500 },
       { status: 500 },
     );
   }
 }
+

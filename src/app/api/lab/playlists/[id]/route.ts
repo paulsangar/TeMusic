@@ -18,16 +18,33 @@ export async function GET(
   const { id } = await params;
 
   try {
-    const [playlist, trackItems] = await Promise.all([
+    const results = await Promise.allSettled([
       getPlaylist(auth.accessToken, id),
       getPlaylistTracks(auth.accessToken, id),
     ]);
 
+    if (results[0].status === 'rejected') {
+      const reason = results[0].reason?.message || String(results[0].reason);
+      console.error('[Playlist Detail] getPlaylist failed:', reason);
+      return Response.json(
+        { data: null, error: `Failed to fetch playlist metadata: ${reason}`, status: 500 },
+        { status: 500 },
+      );
+    }
+
+    const playlist = results[0].value;
+    const trackItems = results[1].status === 'fulfilled' ? (results[1].value || []) : [];
+
+    if (results[1].status === 'rejected') {
+      console.error('[Playlist Detail] getPlaylistTracks failed:', results[1].reason?.message || results[1].reason);
+    }
+
+    // Defensive filtering: some items can be null (deleted tracks, podcast episodes)
     const tracks = trackItems
-      .filter((item) => item.track !== null)
+      .filter((item) => item != null && item.track != null)
       .map((item) => ({
         ...mapTrack(item.track!),
-        addedAt: item.added_at,
+        addedAt: item.added_at || '',
       }));
 
     return Response.json({
@@ -39,10 +56,12 @@ export async function GET(
       status: 200,
     });
   } catch (error) {
-    console.error('Playlist detail error:', error);
+    const msg = error instanceof Error ? error.message : String(error);
+    console.error('[Playlist Detail] Unexpected error:', msg);
     return Response.json(
-      { data: null, error: 'Failed to fetch playlist', status: 500 },
+      { data: null, error: `Failed to fetch playlist: ${msg}`, status: 500 },
       { status: 500 },
     );
   }
 }
+
