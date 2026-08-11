@@ -30,6 +30,9 @@ export function mapTrack(raw: SpotifyTrackRaw): SpotifyTrackItem {
 
   const images = Array.isArray(raw.album?.images) ? raw.album.images : [];
 
+  const releaseDate = raw.album?.release_date || '';
+  const releaseYear = releaseDate ? releaseDate.split('-')[0] : '';
+
   return {
     id: raw.id || '',
     name: raw.name || 'Untitled Track',
@@ -39,6 +42,8 @@ export function mapTrack(raw: SpotifyTrackRaw): SpotifyTrackItem {
       id: raw.album?.id || '',
       name: raw.album?.name || 'Unknown Album',
       images,
+      releaseDate,
+      releaseYear,
     },
     durationMs: raw.duration_ms || 0,
     popularity: raw.popularity || 0,

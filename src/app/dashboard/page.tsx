@@ -49,6 +49,9 @@ function KPICard({ label, value, icon, color }: { label: string; value: string |
 }
 
 function TrackRow({ track, index }: { track: SpotifyTrackItem; index: number }) {
+  const minutes = Math.floor(track.durationMs / 60000);
+  const seconds = Math.floor((track.durationMs % 60000) / 1000).toString().padStart(2, '0');
+
   return (
     <a
       href={track.externalUrl}
@@ -70,7 +73,7 @@ function TrackRow({ track, index }: { track: SpotifyTrackItem; index: number }) 
       <span style={{ fontSize: '12px', color: 'var(--text-tertiary)', width: '24px', textAlign: 'center', fontWeight: 600 }}>
         {index + 1}
       </span>
-      {track.album.images[0] && (
+      {track.album?.images?.[0] && (
         <img
           src={track.album.images[track.album.images.length > 1 ? 1 : 0]?.url}
           alt={track.album.name}
@@ -87,10 +90,14 @@ function TrackRow({ track, index }: { track: SpotifyTrackItem; index: number }) 
           {track.name}
         </div>
         <div style={{ fontSize: '12px', color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-          {track.artists.map((a) => a.name).join(', ')}
+          {track.artists?.map((a) => a.name).join(', ') || 'Unknown Artist'}
+          {track.album?.releaseYear && <span style={{ color: 'var(--text-tertiary)', marginLeft: '8px' }}>· {track.album.releaseYear}</span>}
         </div>
       </div>
-      <Badge variant="default" size="sm">{track.popularity}</Badge>
+      <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+        <span style={{ fontSize: '11px', color: 'var(--text-tertiary)' }}>{minutes}:{seconds}</span>
+        <Badge variant="default" size="sm">🔥 {track.popularity}</Badge>
+      </div>
     </a>
   );
 }
@@ -117,7 +124,7 @@ function ArtistRow({ artist, index }: { artist: SpotifyArtistItem; index: number
       <span style={{ fontSize: '12px', color: 'var(--text-tertiary)', width: '24px', textAlign: 'center', fontWeight: 600 }}>
         {index + 1}
       </span>
-      {artist.images[0] && (
+      {artist.images?.[0] && (
         <img
           src={artist.images[artist.images.length > 1 ? 1 : 0]?.url}
           alt={artist.name}
@@ -134,10 +141,13 @@ function ArtistRow({ artist, index }: { artist: SpotifyArtistItem; index: number
           {artist.name}
         </div>
         <div style={{ fontSize: '12px', color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-          {artist.genres.slice(0, 3).join(', ') || 'No genres'}
+          {artist.genres?.slice(0, 3).join(', ') || 'No genres specified'}
         </div>
       </div>
-      <Badge variant="os" size="sm">{artist.followers.toLocaleString()}</Badge>
+      <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+        <Badge variant="os" size="sm">👥 {artist.followers ? artist.followers.toLocaleString() : '0'}</Badge>
+        <Badge variant="discovery" size="sm">⭐ {artist.popularity}</Badge>
+      </div>
     </a>
   );
 }
@@ -174,6 +184,7 @@ function ActivityBar({ data }: { data: Record<number, number> }) {
 
 export default function DashboardPage() {
   const { data: overview, isLoading, error, mutate } = useMetricsOverview();
+  const [kpiRange, setKpiRange] = useState<TimeRange>('short_term');
   const [tracksRange, setTracksRange] = useState<TimeRange>('short_term');
   const [artistsRange, setArtistsRange] = useState<TimeRange>('short_term');
   const [isSaving, setIsSaving] = useState(false);
@@ -185,6 +196,26 @@ export default function DashboardPage() {
     } finally {
       setIsSaving(false);
     }
+  };
+
+  const getTopTrackForKpi = (): string => {
+    if (!overview) return '—';
+    const map: Record<TimeRange, SpotifyTrackItem[]> = {
+      short_term: overview.topTracks.shortTerm,
+      medium_term: overview.topTracks.mediumTerm,
+      long_term: overview.topTracks.longTerm,
+    };
+    return map[kpiRange]?.[0]?.name ?? '—';
+  };
+
+  const getTopArtistForKpi = (): string => {
+    if (!overview) return '—';
+    const map: Record<TimeRange, SpotifyArtistItem[]> = {
+      short_term: overview.topArtists.shortTerm,
+      medium_term: overview.topArtists.mediumTerm,
+      long_term: overview.topArtists.longTerm,
+    };
+    return map[kpiRange]?.[0]?.name ?? '—';
   };
 
   const getTracksForRange = (): SpotifyTrackItem[] => {
@@ -242,10 +273,38 @@ export default function DashboardPage() {
         }
       />
 
+      {/* Range Selector Bar for KPI Cards */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
+        <span style={{ fontSize: '12px', color: 'var(--text-tertiary)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+          Overview Period
+        </span>
+        <div style={{ display: 'flex', gap: '4px' }}>
+          {timeRanges.map((tr) => (
+            <button
+              key={tr.key}
+              onClick={() => setKpiRange(tr.key)}
+              style={{
+                padding: '4px 12px',
+                fontSize: '11px',
+                fontWeight: 600,
+                borderRadius: 'var(--radius-full)',
+                border: 'none',
+                cursor: 'pointer',
+                transition: 'all var(--transition-fast)',
+                background: kpiRange === tr.key ? 'var(--accent-os)' : 'var(--bg-surface)',
+                color: kpiRange === tr.key ? 'white' : 'var(--text-secondary)',
+              }}
+            >
+              {tr.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
       {/* KPI Cards */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px', marginBottom: '28px' }}>
         <KPICard
-          label="Tracks This Week"
+          label="Tracks Played"
           value={overview?.activitySummary.totalTracksThisWeek ?? '—'}
           icon="🎵"
           color="var(--accent-os)"
@@ -258,13 +317,13 @@ export default function DashboardPage() {
         />
         <KPICard
           label="Top Track"
-          value={overview?.topTracks.shortTerm[0]?.name ?? '—'}
+          value={getTopTrackForKpi()}
           icon="🏆"
           color="var(--accent-lab)"
         />
         <KPICard
           label="Top Artist"
-          value={overview?.topArtists.shortTerm[0]?.name ?? '—'}
+          value={getTopArtistForKpi()}
           icon="⭐"
           color="var(--accent-spotify)"
         />

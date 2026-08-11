@@ -5,7 +5,52 @@ import { useRouter } from 'next/navigation';
 import Header from '@/components/layout/Header';
 import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
+import Badge from '@/components/ui/Badge';
 import { usePlaylistActions } from '@/hooks/usePlaylist';
+
+interface PresetTheme {
+  title: string;
+  emoji: string;
+  name: string;
+  description: string;
+  genres: string;
+  duration: number;
+}
+
+const PRESET_THEMES: PresetTheme[] = [
+  {
+    title: 'Workout Energy',
+    emoji: '⚡',
+    name: '⚡ High Energy Workout Mix',
+    description: 'Upbeat high-energy tracks for training & workout sessions.',
+    genres: 'pop, electronic, dance',
+    duration: 60,
+  },
+  {
+    title: 'Late Night Focus',
+    emoji: '🌙',
+    name: '🌙 Late Night Focus & Flow',
+    description: 'Atmospheric and chill tracks for deep concentration.',
+    genres: 'ambient, chill, indie',
+    duration: 90,
+  },
+  {
+    title: 'Top Latin Hits',
+    emoji: '🔥',
+    name: '🔥 Top Latin & Regional Mix',
+    description: 'Hot Latin hits, reggaeton, and regional tracks.',
+    genres: 'latin, reggaeton, salsa',
+    duration: 60,
+  },
+  {
+    title: 'Rock & Classics',
+    emoji: '🎸',
+    name: '🎸 Classic Rock & Guitar Anthems',
+    description: 'Timeless guitar anthems and classic rock hits.',
+    genres: 'rock, classic-rock, hard-rock',
+    duration: 75,
+  },
+];
 
 export default function CreatePlaylistPage() {
   const router = useRouter();
@@ -13,23 +58,27 @@ export default function CreatePlaylistPage() {
 
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
-  const [seedArtists, setSeedArtists] = useState('');
   const [seedGenres, setSeedGenres] = useState('');
   const [duration, setDuration] = useState(60);
   const [isPublic, setIsPublic] = useState(false);
   const [result, setResult] = useState<{ playlistId: string; trackCount: number } | null>(null);
 
+  const applyPreset = (preset: PresetTheme) => {
+    setName(preset.name);
+    setDescription(preset.description);
+    setSeedGenres(preset.genres);
+    setDuration(preset.duration);
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    const artistIds = seedArtists.split(',').map((s) => s.trim()).filter(Boolean);
     const genres = seedGenres.split(',').map((s) => s.trim()).filter(Boolean);
 
     const data = await createThemedPlaylist({
-      name,
+      name: name || 'My Custom Playlist',
       description,
-      seedArtists: artistIds.length > 0 ? artistIds : undefined,
-      seedGenres: genres.length > 0 ? genres : undefined,
+      seedGenres: genres.length > 0 ? genres : ['pop', 'latin'],
       targetDurationMinutes: duration,
       isPublic,
     });
@@ -61,10 +110,43 @@ export default function CreatePlaylistPage() {
   return (
     <div>
       <Header
-        title="Create Themed Playlist"
-        subtitle="Generate a new playlist from seeds and mood parameters"
+        title="Create Playlist"
+        subtitle="Quickly generate a custom playlist from theme presets or genres"
         module="lab"
       />
+
+      {/* Preset Themes Selector */}
+      <Card padding="md" style={{ marginBottom: '24px' }}>
+        <h3 style={{ fontSize: '14px', fontWeight: 600, marginBottom: '12px', color: 'var(--text-primary)' }}>
+          ✨ Quick Presets (1-Click Theme Fill)
+        </h3>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '10px' }}>
+          {PRESET_THEMES.map((preset) => (
+            <button
+              key={preset.title}
+              type="button"
+              onClick={() => applyPreset(preset)}
+              className="glass-hover"
+              style={{
+                padding: '12px',
+                borderRadius: 'var(--radius-md)',
+                background: 'var(--bg-surface)',
+                border: '1px solid var(--border-default)',
+                color: 'var(--text-primary)',
+                textAlign: 'left',
+                cursor: 'pointer',
+                transition: 'all var(--transition-fast)',
+              }}
+            >
+              <div style={{ fontSize: '20px', marginBottom: '4px' }}>{preset.emoji}</div>
+              <div style={{ fontSize: '13px', fontWeight: 600 }}>{preset.title}</div>
+              <div style={{ fontSize: '11px', color: 'var(--text-tertiary)', marginTop: '2px' }}>
+                {preset.genres}
+              </div>
+            </button>
+          ))}
+        </div>
+      </Card>
 
       {result ? (
         <Card padding="lg" variant="lab">
@@ -74,7 +156,7 @@ export default function CreatePlaylistPage() {
               Playlist Created!
             </h2>
             <p style={{ color: 'var(--text-secondary)', marginBottom: '24px' }}>
-              &quot;{name}&quot; with {result.trackCount} tracks has been added to your Spotify.
+              &quot;{name}&quot; with {result.trackCount} tracks has been added to your Spotify account.
             </p>
             <div style={{ display: 'flex', gap: '12px', justifyContent: 'center' }}>
               <a href={`https://open.spotify.com/playlist/${result.playlistId}`} target="_blank" rel="noopener noreferrer" style={{ textDecoration: 'none' }}>
@@ -84,7 +166,7 @@ export default function CreatePlaylistPage() {
                 Create Another
               </Button>
               <Button variant="ghost" size="md" onClick={() => router.push('/lab')}>
-                Back to Library
+                Back to Playlists
               </Button>
             </div>
           </div>
@@ -99,7 +181,7 @@ export default function CreatePlaylistPage() {
                   type="text"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  placeholder="My Themed Playlist"
+                  placeholder="e.g. My Energy Mix"
                   required
                   style={inputStyle}
                   onFocus={(e) => { e.currentTarget.style.borderColor = 'var(--accent-lab)'; }}
@@ -112,8 +194,8 @@ export default function CreatePlaylistPage() {
                 <textarea
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
-                  placeholder="Optional description for your playlist"
-                  rows={3}
+                  placeholder="Optional playlist description"
+                  rows={2}
                   style={{ ...inputStyle, resize: 'vertical' }}
                   onFocus={(e) => { e.currentTarget.style.borderColor = 'var(--accent-lab)'; }}
                   onBlur={(e) => { e.currentTarget.style.borderColor = 'var(--border-default)'; }}
@@ -121,28 +203,12 @@ export default function CreatePlaylistPage() {
               </div>
 
               <div>
-                <label style={labelStyle}>Seed Artist IDs (comma-separated)</label>
-                <input
-                  type="text"
-                  value={seedArtists}
-                  onChange={(e) => setSeedArtists(e.target.value)}
-                  placeholder="e.g. 4NHQUGzhtTLFvgF5SZesLK, 0du5cEVh5yTK9QJze8zA0C"
-                  style={inputStyle}
-                  onFocus={(e) => { e.currentTarget.style.borderColor = 'var(--accent-lab)'; }}
-                  onBlur={(e) => { e.currentTarget.style.borderColor = 'var(--border-default)'; }}
-                />
-                <p style={{ fontSize: '11px', color: 'var(--text-tertiary)', marginTop: '4px' }}>
-                  Find artist IDs in Spotify URLs (e.g., spotify.com/artist/ARTIST_ID)
-                </p>
-              </div>
-
-              <div>
-                <label style={labelStyle}>Seed Genres (comma-separated)</label>
+                <label style={labelStyle}>Genres (comma-separated)</label>
                 <input
                   type="text"
                   value={seedGenres}
                   onChange={(e) => setSeedGenres(e.target.value)}
-                  placeholder="e.g. indie-pop, electronic, hip-hop"
+                  placeholder="e.g. latin, pop, rock, electronic"
                   style={inputStyle}
                   onFocus={(e) => { e.currentTarget.style.borderColor = 'var(--accent-lab)'; }}
                   onBlur={(e) => { e.currentTarget.style.borderColor = 'var(--border-default)'; }}

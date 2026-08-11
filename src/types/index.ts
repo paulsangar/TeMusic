@@ -150,6 +150,8 @@ export interface SpotifyTrackItem {
     id: string;
     name: string;
     images: SpotifyImage[];
+    releaseDate?: string;
+    releaseYear?: string;
   };
   durationMs: number;
   popularity: number;

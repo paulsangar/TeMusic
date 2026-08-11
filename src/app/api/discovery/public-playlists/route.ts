@@ -7,41 +7,53 @@ import { getAuthenticatedUser, unauthorizedResponse } from '@/lib/auth-middlewar
 import { getFeaturedPlaylists, searchPlaylists, getTopArtists } from '@/lib/spotify/client';
 import { mapPlaylist } from '@/lib/utils';
 import type { SpotifyPlaylistItem } from '@/types';
+import type { SpotifyPlaylistRaw } from '@/lib/spotify/types';
 
 export async function GET() {
   const auth = await getAuthenticatedUser();
   if (!auth) return unauthorizedResponse();
 
   try {
-    // Get featured playlists and user's top genres
-    const [featuredResponse, topArtists] = await Promise.all([
+    // Get featured playlists and user's top artists safely
+    const results = await Promise.allSettled([
       getFeaturedPlaylists(auth.accessToken, 20),
       getTopArtists(auth.accessToken, 'medium_term', 20),
     ]);
 
-    const featured = featuredResponse.playlists.items.map(mapPlaylist);
+    const featuredRaw = results[0].status === 'fulfilled' ? results[0].value?.playlists?.items || [] : [];
+    const topArtists = results[1].status === 'fulfilled' ? results[1].value || [] : [];
+
+    const featured = featuredRaw.filter(Boolean).map(mapPlaylist);
 
     // Extract top genres from user's top artists
     const genreCounts = new Map<string, number>();
     for (const artist of topArtists) {
-      for (const genre of artist.genres) {
-        genreCounts.set(genre, (genreCounts.get(genre) || 0) + 1);
+      if (artist?.genres) {
+        for (const genre of artist.genres) {
+          genreCounts.set(genre, (genreCounts.get(genre) || 0) + 1);
+        }
       }
     }
 
-    // Get top 3 genres
-    const topGenres = Array.from(genreCounts.entries())
+    // Get top 3 genres or default genres
+    let topGenres = Array.from(genreCounts.entries())
       .sort((a, b) => b[1] - a[1])
       .slice(0, 3)
       .map(([genre]) => genre);
 
-    // Search for playlists matching top genres
-    const genrePlaylistsArrays = await Promise.all(
+    if (topGenres.length === 0) {
+      topGenres = ['latin', 'pop', 'rock'];
+    }
+
+    // Search for playlists matching top genres safely
+    const genreResults = await Promise.allSettled(
       topGenres.map((genre) => searchPlaylists(auth.accessToken, genre, 10)),
     );
 
-    const genrePlaylists: SpotifyPlaylistItem[] = genrePlaylistsArrays
-      .flat()
+    const genrePlaylists: SpotifyPlaylistItem[] = genreResults
+      .filter((r): r is PromiseFulfilledResult<SpotifyPlaylistRaw[]> => r.status === 'fulfilled')
+      .flatMap((r) => r.value || [])
+      .filter(Boolean)
       .map(mapPlaylist);
 
     // Deduplicate
@@ -49,7 +61,7 @@ export async function GET() {
     const allPlaylists: SpotifyPlaylistItem[] = [];
 
     for (const pl of [...featured, ...genrePlaylists]) {
-      if (!seen.has(pl.id)) {
+      if (pl?.id && !seen.has(pl.id)) {
         seen.add(pl.id);
         allPlaylists.push(pl);
       }
