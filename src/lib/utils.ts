@@ -100,7 +100,9 @@ export function mapPlaylist(raw: SpotifyPlaylistRaw): SpotifyPlaylistItem {
       id: raw.owner?.id || '',
       displayName: raw.owner?.display_name || raw.owner?.id || 'Unknown Owner',
     },
-    trackCount: raw.tracks?.total || 0,
+    // Spotify sometimes returns tracks under 'items' (e.g., in /me/playlists) 
+    // or 'tracks' (in /playlists/{id}).
+    trackCount: raw.tracks?.total ?? (raw as any).items?.total ?? 0,
     isPublic: raw.public ?? false,
     isCollaborative: raw.collaborative ?? false,
     externalUrl: raw.external_urls?.spotify || '',

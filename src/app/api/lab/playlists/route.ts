@@ -13,6 +13,12 @@ export async function GET() {
 
   try {
     const playlists = await getAllUserPlaylists(auth.accessToken);
+    
+    if (playlists.length > 0) {
+      console.log('[Playlists API] First playlist raw tracks object:', playlists[0].tracks);
+      console.log('[Playlists API] First playlist mapped trackCount:', mapPlaylist(playlists[0]).trackCount);
+    }
+
     return Response.json({
       data: playlists.map(mapPlaylist),
       error: null,
