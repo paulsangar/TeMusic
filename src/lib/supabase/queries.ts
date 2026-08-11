@@ -220,3 +220,41 @@ export async function upsertAlertsConfig(data: {
   if (error) throw new Error(`Failed to upsert alerts config: ${error.message}`);
   return config as AlertsConfigRow;
 }
+
+// ============================================================
+// Global Trends
+// ============================================================
+
+export async function saveGlobalTrend(data: {
+  category: string;
+  area: string;
+  trendData: unknown;
+}) {
+  const db = getSupabase();
+  const { data: trend, error } = await db
+    .from('global_trends')
+    .insert({
+      category: data.category,
+      area: data.area,
+      data: data.trendData,
+    })
+    .select()
+    .single();
+
+  if (error) throw new Error(`Failed to save global trend: ${error.message}`);
+  return trend;
+}
+
+export async function getGlobalTrends(category: string, area: string, limit: number = 10) {
+  const db = getSupabase();
+  const { data, error } = await db
+    .from('global_trends')
+    .select('*')
+    .eq('category', category)
+    .eq('area', area)
+    .order('captured_at', { ascending: false })
+    .limit(limit);
+
+  if (error) throw new Error(`Failed to get global trends: ${error.message}`);
+  return data;
+}

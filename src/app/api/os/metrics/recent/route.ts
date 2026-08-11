@@ -5,23 +5,29 @@
 
 import { NextRequest } from 'next/server';
 import { getAuthenticatedUser, unauthorizedResponse } from '@/lib/auth-middleware';
-import { getRecentlyPlayed } from '@/lib/spotify/client';
-import { mapTrack } from '@/lib/utils';
+import { getMetricsHistory } from '@/lib/supabase/queries';
+import { syncMetricsForUser } from '@/lib/spotify/sync';
 
 export async function GET(request: NextRequest) {
   const auth = await getAuthenticatedUser();
   if (!auth) return unauthorizedResponse();
 
-  const limit = parseInt(request.nextUrl.searchParams.get('limit') || '50', 10);
+  const force = request.nextUrl.searchParams.get('force') === 'true';
 
   try {
-    const recent = await getRecentlyPlayed(auth.accessToken, limit);
-    const validItems = (recent || []).filter((item) => item && item.track);
+    const history = await getMetricsHistory(auth.user.id, 5);
+    // Since recently played is the same across time ranges, any recent snapshot is fine
+    let snapshot = history[0];
+
+    const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
+    const isExpired = !snapshot || new Date(snapshot.captured_at) < oneHourAgo;
+
+    if (force || isExpired) {
+      snapshot = await syncMetricsForUser(auth.user.id, auth.accessToken, 'medium_term');
+    }
+
     return Response.json({
-      data: validItems.map((item) => ({
-        track: mapTrack(item.track),
-        playedAt: item.played_at,
-      })),
+      data: snapshot.recently_played || [],
       error: null,
       status: 200,
     });

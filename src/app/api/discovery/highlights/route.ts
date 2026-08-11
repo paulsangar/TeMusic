@@ -4,30 +4,41 @@
 // ============================================================
 
 import { getAuthenticatedUser, unauthorizedResponse } from '@/lib/auth-middleware';
+import { getGlobalTrends } from '@/lib/supabase/queries';
 import type { DiscoveryHighlight } from '@/types';
 
 export async function GET() {
   const auth = await getAuthenticatedUser();
   if (!auth) return unauthorizedResponse();
+  
+  const trends = await getGlobalTrends('featured-playlists', 'global', 1);
+  const featured = trends.length > 0 ? trends[0].data.playlists.items : [];
 
-  // Phase 2: This will combine Spotify data with Perplexity/Gemini analysis.
-  // For now, return placeholder highlights.
-  const highlights: DiscoveryHighlight[] = [
-    {
-      title: '🤖 AI-Powered Highlights Coming Soon',
-      description: 'In a future update, TeMusc will use AI to generate personalized music recommendations, trend analysis, and discovery insights based on your listening patterns.',
-      type: 'recommendation',
-      items: [],
-      source: 'gemini',
-    },
-    {
-      title: '🔍 Web-Enriched Discovery Coming Soon',
-      description: 'TeMusc will use Perplexity AI to search the web for relevant playlists, music articles, and emerging scenes that match your taste.',
+  const highlights: DiscoveryHighlight[] = [];
+
+  if (featured.length > 0) {
+    highlights.push({
+      title: '🌍 Global Trends',
+      description: 'Popular featured playlists around the world.',
       type: 'trending',
-      items: [],
-      source: 'perplexity',
-    },
-  ];
+      items: featured.map((p: any) => ({
+        id: p.id,
+        name: p.name,
+        description: p.description,
+        imageUrl: p.images?.[0]?.url,
+        url: p.external_urls?.spotify,
+      })),
+      source: 'spotify',
+    });
+  }
+
+  highlights.push({
+    title: '🤖 AI-Powered Highlights Coming Soon',
+    description: 'In a future update, TeMusc will use AI to generate personalized music recommendations, trend analysis, and discovery insights based on your listening patterns.',
+    type: 'recommendation',
+    items: [],
+    source: 'gemini',
+  });
 
   return Response.json({
     data: highlights,

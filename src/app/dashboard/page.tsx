@@ -189,10 +189,18 @@ export default function DashboardPage() {
   const [artistsRange, setArtistsRange] = useState<TimeRange>('short_term');
   const [isSaving, setIsSaving] = useState(false);
 
+  const isCooldown = React.useMemo(() => {
+    if (!overview?.lastUpdated) return false;
+    const oneHour = 60 * 60 * 1000;
+    return (Date.now() - new Date(overview.lastUpdated).getTime()) < oneHour;
+  }, [overview?.lastUpdated]);
+
   const saveSnapshot = async () => {
+    if (isCooldown) return;
     setIsSaving(true);
     try {
       await fetch('/api/os/metrics/snapshot', { method: 'POST' });
+      mutate(); // Reload data after save
     } finally {
       setIsSaving(false);
     }
@@ -267,9 +275,23 @@ export default function DashboardPage() {
         subtitle="Your listening metrics at a glance"
         module="os"
         actions={
-          <Button variant="secondary" size="sm" onClick={saveSnapshot} isLoading={isSaving}>
-            📸 Save Snapshot
-          </Button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            {overview?.lastUpdated && (
+              <span style={{ fontSize: '12px', color: 'var(--text-tertiary)' }}>
+                {isCooldown ? `Updated ${new Date(overview.lastUpdated).toLocaleTimeString()}` : 'Data is outdated'}
+              </span>
+            )}
+            <Button
+              variant={isCooldown ? "secondary" : "spotify"}
+              size="sm"
+              onClick={saveSnapshot}
+              isLoading={isSaving}
+              disabled={isCooldown}
+              title={isCooldown ? 'Refresh limited to once per hour to save quota.' : 'Force refresh data'}
+            >
+              🔄 {isCooldown ? 'On Cooldown' : 'Force Refresh'}
+            </Button>
+          </div>
         }
       />
 

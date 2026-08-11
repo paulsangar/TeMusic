@@ -1,0 +1,15 @@
+Endpoint,Función en TeMusic,Descripción,Campos Devueltos,Alcance (Scope) Requerido,Límite Típico
+/me,getUserProfile,Obtiene el perfil del usuario autenticado.,id, display_name, email, country, images, followers.total, product,user-read-email, user-read-private,-
+/me/top/tracks,getTopTracks,Obtiene las canciones más escuchadas del usuario en corto/medio/largo plazo.,id, name, uri, artists (name, id), album (name, release_date, images), duration_ms, popularity, preview_url,user-top-read,50 por llamada
+/me/top/artists,getTopArtists,Obtiene los artistas más escuchados del usuario.,id, name, genres, images, popularity, followers,user-top-read,50 por llamada
+/me/player/recently-played,getRecentlyPlayed,Obtiene el historial reciente de reproducción.,track (id, name, artists...), played_at (timestamp),user-read-recently-played,50 por llamada
+/me/playlists,getUserPlaylists / getAllUserPlaylists,Lista las playlists creadas y guardadas por el usuario.,id, name, description, images, owner, tracks.total, public, collaborative,playlist-read-private, playlist-read-collaborative,50 por página
+/playlists/{playlist_id}/items,getPlaylistTracks,Obtiene los tracks individuales dentro de una playlist.,added_at, track (id, name, uri, album, artists...), item,playlist-read-private,100 por página
+/users/{user_id}/playlists,createPlaylist,Crea una nueva playlist para el usuario.,id, name, description, public, collaborative, snapshot_id,playlist-modify-public, playlist-modify-private,-
+/playlists/{playlist_id}/items,addTracksToPlaylist,Agrega tracks específicos a una playlist mediante URIs.,snapshot_id,playlist-modify-public, playlist-modify-private,100 por lote
+/playlists/{playlist_id}/tracks,removeTracksFromPlaylist,Elimina tracks específicos de una playlist.,snapshot_id,playlist-modify-public, playlist-modify-private,100 por lote
+/playlists/{playlist_id}/images,uploadPlaylistCover,Sube una imagen personalizada para la portada de la playlist.,Ninguno (202 Accepted),ugc-image-upload,-
+/me/following?type=artist,getFollowedArtists,Obtiene la lista de artistas que el usuario sigue.,id, name, genres, images, popularity, followers,user-follow-read,50 por página
+/recommendations,getRecommendations,Obtiene canciones recomendadas basadas en semillas (artistas/géneros/canciones).,id, name, uri, artists, album, duration_ms, popularity,preview_url,-,Máximo 100
+/browse/featured-playlists,getFeaturedPlaylists,Obtiene playlists destacadas globales de Spotify.,message, playlists (id, name, description, images, owner),-,50 por página
+/search,searchPlaylists,Busca playlists usando una consulta de texto.,id, name, description, images, owner, tracks.total,-,50 por página

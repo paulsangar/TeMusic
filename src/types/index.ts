@@ -57,6 +57,7 @@ export interface MetricsOverview {
   };
   recentlyPlayed: RecentlyPlayedItem[];
   activitySummary: ActivitySummary;
+  lastUpdated: string;
 }
 
 export interface ActivitySummary {

@@ -113,14 +113,16 @@ export default function LabPage() {
     <div>
       <Header
         title="Playlist Laboratory"
-        subtitle="Clone, clean, and remix your playlists"
+        subtitle="Experiment with recommendations based on your taste"
         module="lab"
         actions={
-          <Link href="/lab/create" style={{ textDecoration: 'none' }}>
-            <Button variant="primary" size="sm">
-              ✨ Create Playlist
-            </Button>
-          </Link>
+          <div style={{ display: 'flex', gap: '8px' }}>
+            <Link href="/lab/experiment" style={{ textDecoration: 'none' }}>
+              <Button variant="primary" size="sm">
+                🧪 Experiment
+              </Button>
+            </Link>
+          </div>
         }
       />
 

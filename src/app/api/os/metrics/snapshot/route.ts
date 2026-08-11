@@ -4,39 +4,15 @@
 // ============================================================
 
 import { getAuthenticatedUser, unauthorizedResponse } from '@/lib/auth-middleware';
-import { getTopTracks, getTopArtists, getRecentlyPlayed } from '@/lib/spotify/client';
-import { saveMetricsSnapshot } from '@/lib/supabase/queries';
-import { mapTrack, mapArtist, buildActivitySummary } from '@/lib/utils';
-import type { SpotifyRecentlyPlayedRaw } from '@/lib/spotify/types';
+import { syncMetricsForUser } from '@/lib/spotify/sync';
 
 export async function POST() {
   const auth = await getAuthenticatedUser();
   if (!auth) return unauthorizedResponse();
 
   try {
-    // Fetch current metrics
-    const [tracks, artists, recentRaw] = await Promise.all([
-      getTopTracks(auth.accessToken, 'medium_term', 50),
-      getTopArtists(auth.accessToken, 'medium_term', 50),
-      getRecentlyPlayed(auth.accessToken, 50),
-    ]);
-
-    const recentlyPlayed = recentRaw.map((item: SpotifyRecentlyPlayedRaw) => ({
-      track: mapTrack(item.track),
-      playedAt: item.played_at,
-    }));
-
-    const activitySummary = buildActivitySummary(recentlyPlayed);
-
-    // Save snapshot to Supabase
-    const snapshot = await saveMetricsSnapshot({
-      userId: auth.user.id,
-      timeRange: 'medium_term',
-      topTracks: tracks.map(mapTrack),
-      topArtists: artists.map(mapArtist),
-      recentlyPlayed,
-      activitySummary,
-    });
+    // Sync snapshot (reads from Spotify and writes to Supabase)
+    const snapshot = await syncMetricsForUser(auth.user.id, auth.accessToken, 'medium_term');
 
     return Response.json({
       data: snapshot,
