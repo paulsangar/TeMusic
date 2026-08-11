@@ -89,6 +89,7 @@ export interface PlaylistAnalysis {
   duplicates: DuplicateGroup[];
   duplicateCount: number;
   genreDistribution: Record<string, number>;
+  yearDistribution: Record<string, number>;
   averagePopularity: number;
 }
 

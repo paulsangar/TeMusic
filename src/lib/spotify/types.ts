@@ -78,7 +78,8 @@ export interface SpotifyPlaylistRaw {
 
 export interface SpotifyPlaylistTrackRaw {
   added_at: string;
-  track: SpotifyTrackRaw | null;  // can be null for removed tracks
+  track?: SpotifyTrackRaw | null;  // legacy /tracks endpoint
+  item?: SpotifyTrackRaw | null;   // new /items endpoint
 }
 
 export interface SpotifyRecentlyPlayedRaw {

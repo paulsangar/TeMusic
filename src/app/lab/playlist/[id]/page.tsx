@@ -58,7 +58,7 @@ export default function PlaylistDetailPage({ params }: { params: Promise<{ id: s
 
       {/* Analysis Cards */}
       {analysis && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px', marginBottom: '24px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '12px', marginBottom: '24px' }}>
           <Card padding="sm">
             <div style={{ fontSize: '11px', color: 'var(--text-tertiary)', fontWeight: 600, textTransform: 'uppercase' }}>Duplicates</div>
             <div style={{ fontSize: '24px', fontWeight: 700, marginTop: '4px', color: analysis.duplicateCount > 0 ? 'var(--warning)' : 'var(--success)' }}>
@@ -72,6 +72,12 @@ export default function PlaylistDetailPage({ params }: { params: Promise<{ id: s
           <Card padding="sm">
             <div style={{ fontSize: '11px', color: 'var(--text-tertiary)', fontWeight: 600, textTransform: 'uppercase' }}>Unique Artists</div>
             <div style={{ fontSize: '24px', fontWeight: 700, marginTop: '4px' }}>{Object.keys(analysis.genreDistribution).length}</div>
+          </Card>
+          <Card padding="sm">
+            <div style={{ fontSize: '11px', color: 'var(--text-tertiary)', fontWeight: 600, textTransform: 'uppercase' }}>Top Year</div>
+            <div style={{ fontSize: '24px', fontWeight: 700, marginTop: '4px' }}>
+              {Object.entries(analysis.yearDistribution || {}).sort((a, b) => b[1] - a[1])[0]?.[0] || 'N/A'}
+            </div>
           </Card>
         </div>
       )}
@@ -123,7 +129,7 @@ export default function PlaylistDetailPage({ params }: { params: Promise<{ id: s
           <SkeletonList count={15} />
         ) : playlist?.tracks && playlist.tracks.length > 0 ? (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', maxHeight: '600px', overflowY: 'auto' }}>
-            {playlist.tracks.map((track: { id: string; name: string; artists: { name: string }[]; album: { images: { url: string }[] }; popularity: number; externalUrl: string }, i: number) => (
+            {playlist.tracks.map((track: { id: string; name: string; artists: { name: string }[]; album: { images: { url: string }[]; releaseYear?: string }; popularity: number; externalUrl: string }, i: number) => (
               <a
                 key={`${track.id}-${i}`}
                 href={track.externalUrl}
@@ -149,6 +155,9 @@ export default function PlaylistDetailPage({ params }: { params: Promise<{ id: s
                   <div style={{ fontSize: '14px', fontWeight: 500, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{track.name}</div>
                   <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>{track.artists.map((a: { name: string }) => a.name).join(', ')}</div>
                 </div>
+                {track.album.releaseYear && (
+                  <Badge variant="lab" size="sm">{track.album.releaseYear}</Badge>
+                )}
                 <Badge variant="default" size="sm">{track.popularity}</Badge>
               </a>
             ))}

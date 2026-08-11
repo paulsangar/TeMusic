@@ -44,9 +44,9 @@ export async function GET(
 
     // Defensive filtering: some items can be null (deleted tracks, podcast episodes)
     const tracks = trackItems
-      .filter((item) => item != null && item.track != null)
+      .filter((item) => item != null && (item.track != null || item.item != null))
       .map((item) => ({
-        ...mapTrack(item.track!),
+        ...mapTrack((item.track || item.item)!),
         addedAt: item.added_at || '',
       }));
 

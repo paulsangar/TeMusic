@@ -41,13 +41,13 @@ export async function GET(
 
     // Defensive filtering: skip null items AND null tracks (deleted, podcasts)
     const validTracks = trackItems.filter(
-      (item) => item != null && item.track != null,
+      (item) => item != null && (item.track != null || item.item != null),
     );
 
     // Find duplicates
     const trackCounts = new Map<string, { name: string; artist: string; uris: string[] }>();
     for (const item of validTracks) {
-      const track = item.track!;
+      const track = (item.track || item.item)!;
       const artistName = track.artists?.[0]?.name || 'Unknown';
       const key = `${(track.name || '').toLowerCase()}|${artistName.toLowerCase()}`;
       const existing = trackCounts.get(key);
@@ -74,15 +74,27 @@ export async function GET(
       }
     }
 
-    // Genre distribution (from artist names as proxy — full genre analysis needs artist lookups)
+    // Genre distribution (from artist names as proxy) and Year distribution
     const genreDistribution: Record<string, number> = {};
+    const yearDistribution: Record<string, number> = {};
+    
     for (const item of validTracks) {
-      const artistName = item.track!.artists?.[0]?.name || 'Unknown';
+      const track = (item.track || item.item)!;
+      
+      const artistName = track.artists?.[0]?.name || 'Unknown';
       genreDistribution[artistName] = (genreDistribution[artistName] || 0) + 1;
+      
+      const releaseDate = track.album?.release_date;
+      if (releaseDate) {
+        const year = releaseDate.substring(0, 4);
+        yearDistribution[year] = (yearDistribution[year] || 0) + 1;
+      } else {
+        yearDistribution['Unknown'] = (yearDistribution['Unknown'] || 0) + 1;
+      }
     }
 
     // Average popularity
-    const totalPop = validTracks.reduce((sum, item) => sum + (item.track!.popularity || 0), 0);
+    const totalPop = validTracks.reduce((sum, item) => sum + ((item.track || item.item)!.popularity || 0), 0);
     const avgPop = validTracks.length > 0 ? Math.round(totalPop / validTracks.length) : 0;
 
     const analysis: PlaylistAnalysis = {
@@ -92,6 +104,7 @@ export async function GET(
       duplicates,
       duplicateCount: duplicates.reduce((sum, d) => sum + d.occurrences - 1, 0),
       genreDistribution,
+      yearDistribution,
       averagePopularity: avgPop,
     };
 
