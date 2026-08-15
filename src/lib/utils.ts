@@ -18,7 +18,7 @@ export function mapTrack(raw: SpotifyTrackRaw): SpotifyTrackItem {
       artists: [],
       album: { id: '', name: 'Unknown Album', images: [] },
       durationMs: 0,
-      popularity: 0,
+      popularity: null,
       previewUrl: null,
       externalUrl: '',
     };
@@ -46,7 +46,7 @@ export function mapTrack(raw: SpotifyTrackRaw): SpotifyTrackItem {
       releaseYear,
     },
     durationMs: raw.duration_ms || 0,
-    popularity: raw.popularity || 0,
+    popularity: raw.popularity ?? null,
     previewUrl: raw.preview_url || null,
     externalUrl: raw.external_urls?.spotify || '',
   };
@@ -59,8 +59,8 @@ export function mapArtist(raw: SpotifyArtistRaw): SpotifyArtistItem {
       name: 'Unknown Artist',
       genres: [],
       images: [],
-      popularity: 0,
-      followers: 0,
+      popularity: null,
+      followers: null,
       externalUrl: '',
     };
   }
@@ -70,8 +70,8 @@ export function mapArtist(raw: SpotifyArtistRaw): SpotifyArtistItem {
     name: raw.name || 'Unknown Artist',
     genres: Array.isArray(raw.genres) ? raw.genres : [],
     images: Array.isArray(raw.images) ? raw.images : [],
-    popularity: raw.popularity || 0,
-    followers: raw.followers?.total || 0,
+    popularity: raw.popularity ?? null,
+    followers: raw.followers?.total ?? null,
     externalUrl: raw.external_urls?.spotify || '',
   };
 }
@@ -102,7 +102,7 @@ export function mapPlaylist(raw: SpotifyPlaylistRaw): SpotifyPlaylistItem {
     },
     // Spotify sometimes returns tracks under 'items' (e.g., in /me/playlists) 
     // or 'tracks' (in /playlists/{id}).
-    trackCount: raw.tracks?.total ?? (raw as any).items?.total ?? 0,
+    trackCount: raw.tracks?.total ?? raw.items?.total ?? 0,
     isPublic: raw.public ?? false,
     isCollaborative: raw.collaborative ?? false,
     externalUrl: raw.external_urls?.spotify || '',

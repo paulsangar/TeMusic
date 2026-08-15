@@ -1,11 +1,18 @@
 'use client';
 
-import React from 'react';
+import React, { useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import Sidebar from '@/components/layout/Sidebar';
+import AuthServiceUnavailable from '@/components/auth/AuthServiceUnavailable';
 import { useAuth } from '@/hooks/useAuth';
 
 export default function SettingsLayout({ children }: { children: React.ReactNode }) {
-  const { isAuthenticated, isLoading } = useAuth();
+  const { isAuthenticated, isLoading, isServiceError, mutate } = useAuth();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (!isLoading && !isAuthenticated && !isServiceError) router.replace('/');
+  }, [isAuthenticated, isLoading, isServiceError, router]);
 
   if (isLoading) {
     return (
@@ -15,8 +22,11 @@ export default function SettingsLayout({ children }: { children: React.ReactNode
     );
   }
 
+  if (isServiceError) {
+    return <AuthServiceUnavailable onRetry={() => { void mutate(); }} />;
+  }
+
   if (!isAuthenticated) {
-    if (typeof window !== 'undefined') window.location.href = '/';
     return null;
   }
 

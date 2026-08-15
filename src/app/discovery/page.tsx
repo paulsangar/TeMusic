@@ -11,9 +11,10 @@ import type { UnexploredArtist, SpotifyPlaylistItem, DiscoveryHighlight } from '
 import { fetcher } from '@/lib/fetcher';
 
 export default function DiscoveryPage() {
-  const { data: unexplored, isLoading: loadingUnexplored } = useSWR<UnexploredArtist[]>('/api/discovery/unexplored', fetcher, { revalidateOnFocus: false });
-  const { data: publicData, isLoading: loadingPublic } = useSWR<{ featured: SpotifyPlaylistItem[]; forYou: SpotifyPlaylistItem[]; topGenres: string[] }>('/api/discovery/public-playlists', fetcher, { revalidateOnFocus: false });
-  const { data: highlights, isLoading: loadingHighlights } = useSWR<DiscoveryHighlight[]>('/api/discovery/highlights', fetcher, { revalidateOnFocus: false });
+  const swrOptions = { revalidateOnFocus: false, shouldRetryOnError: false };
+  const { data: unexplored, isLoading: loadingUnexplored, error: unexploredError } = useSWR<UnexploredArtist[]>('/api/discovery/unexplored', fetcher, swrOptions);
+  const { data: publicData, isLoading: loadingPublic, error: publicError } = useSWR<{ featured: SpotifyPlaylistItem[]; forYou: SpotifyPlaylistItem[]; topGenres: string[] }>('/api/discovery/public-playlists', fetcher, swrOptions);
+  const { data: highlights, isLoading: loadingHighlights, error: highlightsError } = useSWR<DiscoveryHighlight[]>('/api/discovery/highlights', fetcher, swrOptions);
 
   return (
     <div>
@@ -36,6 +37,8 @@ export default function DiscoveryPage() {
         </div>
         {loadingUnexplored ? (
           <SkeletonList count={6} />
+        ) : unexploredError ? (
+          <p style={{ color: '#f87171', fontSize: '14px' }}>Could not load unexplored artists: {unexploredError.message}</p>
         ) : unexplored && unexplored.length > 0 ? (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '12px' }}>
             {unexplored.slice(0, 12).map((item) => (
@@ -106,7 +109,9 @@ export default function DiscoveryPage() {
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: '16px' }}>
             {Array.from({ length: 6 }).map((_, i) => <SkeletonCard key={i} />)}
           </div>
-        ) : publicData ? (
+        ) : publicError ? (
+          <p style={{ color: '#f87171', fontSize: '14px' }}>Could not load public playlists: {publicError.message}</p>
+        ) : publicData && [...(publicData.forYou || []), ...(publicData.featured || [])].length > 0 ? (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: '16px' }}>
             {[...(publicData.forYou || []), ...(publicData.featured || [])].slice(0, 12).map((pl) => (
               <a
@@ -140,7 +145,11 @@ export default function DiscoveryPage() {
               </a>
             ))}
           </div>
-        ) : null}
+        ) : (
+          <p style={{ color: 'var(--text-tertiary)', fontSize: '14px' }}>
+            No public playlists matched your current listening profile.
+          </p>
+        )}
       </Card>
 
       {/* AI Highlights (Phase 2 stubs) */}
@@ -148,6 +157,8 @@ export default function DiscoveryPage() {
         <h2 style={{ fontSize: '18px', fontWeight: 600, marginBottom: '16px' }}>✨ AI Highlights</h2>
         {loadingHighlights ? (
           <SkeletonList count={2} />
+        ) : highlightsError ? (
+          <p style={{ color: '#f87171', fontSize: '14px' }}>Could not load highlights: {highlightsError.message}</p>
         ) : highlights ? (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
             {highlights.map((highlight, i) => (

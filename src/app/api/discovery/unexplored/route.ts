@@ -3,36 +3,24 @@
 // Artists the user follows but rarely listens to.
 // ============================================================
 
-import { getAuthenticatedUser, unauthorizedResponse } from '@/lib/auth-middleware';
-import { getFollowedArtists, getTopArtists, getRecentlyPlayed } from '@/lib/spotify/client';
+import { authenticateRequest, withSpotifyRetry } from '@/lib/auth-middleware';
+import { getFollowedArtists, getTopArtists, getRecentlyPlayed, spotifyErrorResponse } from '@/lib/spotify/client';
 import { mapArtist } from '@/lib/utils';
 import type { UnexploredArtist } from '@/types';
 
 export async function GET() {
-  const auth = await getAuthenticatedUser();
-  if (!auth) return unauthorizedResponse();
+  const { auth, errorResponse } = await authenticateRequest();
+  if (!auth) return errorResponse;
 
   try {
-    // Fetch followed artists, top artists (short, medium, long), and recently played in parallel safely
-    const results = await Promise.allSettled([
-      getFollowedArtists(auth.accessToken),
-      getTopArtists(auth.accessToken, 'short_term', 50),
-      getTopArtists(auth.accessToken, 'medium_term', 50),
-      getTopArtists(auth.accessToken, 'long_term', 50),
-      getRecentlyPlayed(auth.accessToken, 50),
-    ]);
-
-    const getValue = <T>(res: PromiseSettledResult<T>, fallback: T): T => {
-      if (res.status === 'fulfilled') return res.value;
-      console.error('[Unexplored Route] Endpoint fetch failed:', res.reason?.message || res.reason);
-      return fallback;
-    };
-
-    const followedArtists = getValue(results[0], []).filter(Boolean);
-    const topShort = getValue(results[1], []).filter(Boolean);
-    const topMedium = getValue(results[2], []).filter(Boolean);
-    const topLong = getValue(results[3], []).filter(Boolean);
-    const recentRaw = getValue(results[4], []).filter((item) => item && item.track);
+    const [followedArtists, topShort, topMedium, topLong, recent] = await withSpotifyRetry(auth, (accessToken) => Promise.all([
+      getFollowedArtists(accessToken),
+      getTopArtists(accessToken, 'short_term', 50),
+      getTopArtists(accessToken, 'medium_term', 50),
+      getTopArtists(accessToken, 'long_term', 50),
+      getRecentlyPlayed(accessToken, 50),
+    ]));
+    const recentRaw = recent.filter((item) => item && item.track);
 
     // Build sets of actively listened-to artists
     const topArtistIds = new Set<string>();
@@ -78,9 +66,6 @@ export async function GET() {
     });
   } catch (error) {
     console.error('Unexplored artists error:', error);
-    return Response.json(
-      { data: null, error: 'Failed to fetch unexplored artists', status: 500 },
-      { status: 500 },
-    );
+    return spotifyErrorResponse(error, 'Failed to fetch unexplored artists');
   }
 }

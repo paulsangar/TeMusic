@@ -4,18 +4,18 @@
 // ============================================================
 
 import { NextRequest } from 'next/server';
-import { getAuthenticatedUser, unauthorizedResponse } from '@/lib/auth-middleware';
-import { getPlaylist, getPlaylistTracks, createPlaylist, addTracksToPlaylist } from '@/lib/spotify/client';
+import { authenticateRequest, withSpotifyRetry } from '@/lib/auth-middleware';
+import { getPlaylist, getPlaylistTracks, createPlaylist, addTracksToPlaylist, spotifyErrorResponse } from '@/lib/spotify/client';
 import { mapTrack } from '@/lib/utils';
 import type { CleanPlaylistRequest } from '@/types';
 
 export async function POST(request: NextRequest) {
-  const auth = await getAuthenticatedUser();
-  if (!auth) return unauthorizedResponse();
+  const { auth, errorResponse } = await authenticateRequest();
+  if (!auth) return errorResponse;
 
   try {
     const body: CleanPlaylistRequest = await request.json();
-    const { playlistId, removeDuplicates, removeUnpopular, popularityThreshold = 20, newName } = body;
+    const { playlistId, removeDuplicates, removeUnpopular, newName } = body;
 
     if (!playlistId) {
       return Response.json(
@@ -24,36 +24,22 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Get original playlist and tracks with resilience
-    const results = await Promise.allSettled([
-      getPlaylist(auth.accessToken, playlistId),
-      getPlaylistTracks(auth.accessToken, playlistId),
-    ]);
-
-    if (results[0].status === 'rejected') {
-      const reason = results[0].reason?.message || String(results[0].reason);
-      console.error('[Clean Playlist] getPlaylist failed:', reason);
+    if (removeUnpopular) {
       return Response.json(
-        { data: null, error: `Failed to load playlist: ${reason}`, status: 500 },
-        { status: 500 },
+        { data: null, error: 'Filtering by popularity is unavailable with the current Spotify API.', status: 422 },
+        { status: 422 },
       );
     }
 
-    if (results[1].status === 'rejected') {
-      const reason = results[1].reason?.message || String(results[1].reason);
-      console.error('[Clean Playlist] getPlaylistTracks failed:', reason);
-      return Response.json(
-        { data: null, error: `Failed to load tracks: ${reason}`, status: 500 },
-        { status: 500 },
-      );
-    }
+    // Both reads must complete before any playlist mutation is allowed.
+    const [originalPlaylist, allTrackItems] = await withSpotifyRetry(auth, (accessToken) => Promise.all([
+      getPlaylist(accessToken, playlistId),
+      getPlaylistTracks(accessToken, playlistId),
+    ]));
 
-    const originalPlaylist = results[0].value;
-    const allTrackItems = results[1].value || [];
-
-    // Defensive: filter null items AND null tracks
+    // Normalize both the legacy `track` and current `item` payload shapes.
     let tracks = allTrackItems.filter(
-      (item) => item != null && item.track != null,
+      (item) => item != null && (item.item != null || item.track != null),
     );
 
     const originalCount = tracks.length;
@@ -61,33 +47,30 @@ export async function POST(request: NextRequest) {
     if (removeDuplicates) {
       const seen = new Set<string>();
       tracks = tracks.filter((item) => {
-        const key = item.track!.uri;
+        const key = (item.item ?? item.track)!.uri;
         if (seen.has(key)) return false;
         seen.add(key);
         return true;
       });
     }
 
-    if (removeUnpopular) {
-      tracks = tracks.filter((item) => (item.track!.popularity || 0) >= popularityThreshold);
-    }
-
     // Create new playlist
     const cleanedName = newName || `TeMusc LAB – ${originalPlaylist.name}`;
-    const newPlaylist = await createPlaylist(
-      auth.accessToken,
-      auth.user.spotify_id,
+    const newPlaylist = await withSpotifyRetry(auth, (accessToken) => createPlaylist(
+      accessToken,
       cleanedName,
       {
         description: `Cleaned version of "${originalPlaylist.name}" by TeMusc LAB. Original: ${originalCount} tracks → Cleaned: ${tracks.length} tracks.`,
         isPublic: false,
       },
-    );
+    ));
 
     // Add tracks to new playlist
-    const trackUris = tracks.map((item) => item.track!.uri);
-    if (trackUris.length > 0) {
-      await addTracksToPlaylist(auth.accessToken, newPlaylist.id, trackUris);
+    const trackUris = tracks.map((item) => (item.item ?? item.track)!.uri);
+    for (let index = 0; index < trackUris.length; index += 100) {
+      const batch = trackUris.slice(index, index + 100);
+      // Retry only this idempotent-sized batch, never previously added batches.
+      await withSpotifyRetry(auth, (accessToken) => addTracksToPlaylist(accessToken, newPlaylist.id, batch));
     }
 
     return Response.json({
@@ -97,18 +80,13 @@ export async function POST(request: NextRequest) {
         originalTrackCount: originalCount,
         cleanedTrackCount: tracks.length,
         removedCount: originalCount - tracks.length,
-        tracks: tracks.map((item) => mapTrack(item.track!)),
+        tracks: tracks.map((item) => mapTrack((item.item ?? item.track)!)),
       },
       error: null,
       status: 201,
     }, { status: 201 });
   } catch (error) {
-    const msg = error instanceof Error ? error.message : String(error);
-    console.error('[Clean Playlist] Unexpected error:', msg);
-    return Response.json(
-      { data: null, error: `Failed to clean playlist: ${msg}`, status: 500 },
-      { status: 500 },
-    );
+    console.error('[Clean Playlist] Unexpected error:', error instanceof Error ? error.name : 'UnknownError');
+    return spotifyErrorResponse(error, 'Failed to clean playlist');
   }
 }
-

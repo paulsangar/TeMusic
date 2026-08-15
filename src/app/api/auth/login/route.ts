@@ -1,28 +1,19 @@
 import { buildAuthorizationUrl } from '@/lib/spotify/auth';
 import { generateState } from '@/lib/utils';
+import { NextResponse } from 'next/server';
 
 export const dynamic = 'force-dynamic';
 
-export async function GET(): Promise<Response> {
+export async function GET(): Promise<NextResponse> {
   const state = generateState();
   const authUrl = buildAuthorizationUrl(state);
-
-  // Usamos Web API Response nativa (no NextResponse) para garantizar
-  // que el Set-Cookie se propague correctamente en el 302.
-  // sameSite=Lax es requerido para que la cookie viaje en el redirect de Spotify.
-  const cookieStr = [
-    `spotify_auth_state=${state}`,
-    'Path=/',
-    'HttpOnly',
-    'SameSite=Lax',
-    'Max-Age=600',
-  ].join('; ');
-
-  return new Response(null, {
-    status: 302,
-    headers: {
-      'Location': authUrl,
-      'Set-Cookie': cookieStr,
-    },
+  const response = NextResponse.redirect(authUrl);
+  response.cookies.set('spotify_auth_state', state, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'lax',
+    path: '/',
+    maxAge: 600,
   });
+  return response;
 }

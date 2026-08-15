@@ -1,31 +1,21 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { Suspense, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Button from '@/components/ui/Button';
 
-export default function LandingPage() {
-  const [mounted, setMounted] = useState(false);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
-
-  useEffect(() => {
-    setMounted(true);
-    if (typeof window !== 'undefined') {
-      const params = new URLSearchParams(window.location.search);
-      const err = params.get('error');
-      const detail = params.get('detail');
-      if (err) {
-        let msg = `Authentication Error: ${err}`;
-        if (err === 'state_mismatch') {
-          msg = 'Session state mismatch. Please ensure you are accessing http://127.0.0.1:3000.';
-        } else if (err === 'access_denied') {
-          msg = 'Spotify authorization access was denied.';
-        } else if (err === 'auth_failed') {
-          msg = detail ? `Authentication failed: ${decodeURIComponent(detail)}` : 'Authentication failed. Please try again.';
-        }
-        setErrorMessage(msg);
-      }
-    }
-  }, []);
+function LandingPageContent() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const [dismissedError, setDismissedError] = useState(false);
+  const errorCode = searchParams.get('error');
+  const errorMessage = dismissedError || !errorCode
+    ? null
+    : errorCode === 'state_mismatch'
+      ? 'The login session expired or could not be verified. Please try again.'
+      : errorCode === 'access_denied'
+        ? 'Spotify authorization access was denied.'
+        : 'Authentication failed. Please try again.';
 
   return (
     <div
@@ -122,8 +112,8 @@ export default function LandingPage() {
         }}
       >
         <div
-          className={mounted ? 'animate-fade-in-up' : ''}
-          style={{ maxWidth: '720px', opacity: mounted ? undefined : 0 }}
+          className="animate-fade-in-up"
+          style={{ maxWidth: '720px' }}
         >
           {errorMessage && (
             <div
@@ -144,7 +134,7 @@ export default function LandingPage() {
             >
               <span>⚠️ {errorMessage}</span>
               <button
-                onClick={() => setErrorMessage(null)}
+                onClick={() => setDismissedError(true)}
                 style={{
                   background: 'none',
                   border: 'none',
@@ -233,7 +223,7 @@ export default function LandingPage() {
           <Button
             variant="spotify"
             size="lg"
-            onClick={() => { window.location.href = '/api/auth/login'; }}
+            onClick={() => router.push('/api/auth/login')}
             icon={
               <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor">
                 <path d="M12 0C5.4 0 0 5.4 0 12s5.4 12 12 12 12-5.4 12-12S18.66 0 12 0zm5.521 17.34c-.24.359-.66.48-1.021.24-2.82-1.74-6.36-2.101-10.561-1.141-.418.122-.779-.179-.899-.539-.12-.421.18-.78.54-.9 4.56-1.021 8.52-.6 11.64 1.32.42.18.479.659.301 1.02zm1.44-3.3c-.301.42-.841.6-1.262.3-3.239-1.98-8.159-2.58-11.939-1.38-.479.12-1.02-.12-1.14-.6-.12-.48.12-1.021.6-1.141C9.6 9.9 15 10.561 18.72 12.84c.361.181.54.78.241 1.2zm.12-3.36C15.24 8.4 8.82 8.16 5.16 9.301c-.6.179-1.2-.181-1.38-.721-.18-.601.18-1.2.72-1.381 4.26-1.26 11.28-1.02 15.721 1.621.539.3.719 1.02.419 1.56-.299.421-1.02.599-1.559.3z"/>
@@ -256,7 +246,7 @@ export default function LandingPage() {
 
         {/* Feature cards */}
         <div
-          className={mounted ? 'animate-fade-in-up' : ''}
+          className="animate-fade-in-up"
           style={{
             display: 'grid',
             gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))',
@@ -264,7 +254,6 @@ export default function LandingPage() {
             maxWidth: '900px',
             width: '100%',
             marginTop: '72px',
-            opacity: mounted ? undefined : 0,
             animationDelay: '200ms',
           }}
         >
@@ -343,5 +332,13 @@ export default function LandingPage() {
         Built with Spotify Web API · TeMusc {new Date().getFullYear()}
       </footer>
     </div>
+  );
+}
+
+export default function LandingPage() {
+  return (
+    <Suspense fallback={null}>
+      <LandingPageContent />
+    </Suspense>
   );
 }

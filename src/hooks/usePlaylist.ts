@@ -5,9 +5,27 @@ import { useCallback, useState } from 'react';
 import { fetcher } from '@/lib/fetcher';
 import type { SpotifyPlaylistItem, SpotifyTrackItem, PlaylistAnalysis } from '@/types';
 
+interface CleanPlaylistResult {
+  newPlaylistId: string;
+  newPlaylistName: string;
+  originalTrackCount: number;
+  cleanedTrackCount: number;
+  removedCount: number;
+  tracks: SpotifyTrackItem[];
+}
+
+interface CreateThemedPlaylistResult {
+  playlistId: string;
+  playlistName: string;
+  trackCount: number;
+  totalDurationMs: number;
+  tracks: SpotifyTrackItem[];
+}
+
 export function usePlaylists() {
   return useSWR<SpotifyPlaylistItem[]>('/api/lab/playlists', fetcher, {
     revalidateOnFocus: false,
+    shouldRetryOnError: false,
   });
 }
 
@@ -15,7 +33,7 @@ export function usePlaylistDetail(playlistId: string | null) {
   return useSWR<SpotifyPlaylistItem & { tracks: (SpotifyTrackItem & { addedAt: string })[] }>(
     playlistId ? `/api/lab/playlists/${playlistId}` : null,
     fetcher,
-    { revalidateOnFocus: false },
+    { revalidateOnFocus: false, shouldRetryOnError: false },
   );
 }
 
@@ -23,7 +41,7 @@ export function usePlaylistAnalysis(playlistId: string | null) {
   return useSWR<PlaylistAnalysis>(
     playlistId ? `/api/lab/analyze/${playlistId}` : null,
     fetcher,
-    { revalidateOnFocus: false },
+    { revalidateOnFocus: false, shouldRetryOnError: false },
   );
 }
 
@@ -41,14 +59,11 @@ export function usePlaylistActions() {
     setIsLoading(true);
     setError(null);
     try {
-      const res = await fetch('/api/lab/clean-playlist', {
+      return await fetcher<CleanPlaylistResult>('/api/lab/clean-playlist', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Failed to clean playlist');
-      return data.data;
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Unknown error';
       setError(message);
@@ -70,14 +85,11 @@ export function usePlaylistActions() {
     setIsLoading(true);
     setError(null);
     try {
-      const res = await fetch('/api/lab/create-themed-playlist', {
+      return await fetcher<CreateThemedPlaylistResult>('/api/lab/create-themed-playlist', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Failed to create playlist');
-      return data.data;
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Unknown error';
       setError(message);

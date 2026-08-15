@@ -1,4 +1,4 @@
-import { NextRequest } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { exchangeCodeForTokens } from '@/lib/spotify/auth';
 import { getUserProfile } from '@/lib/spotify/client';
 import { upsertUser } from '@/lib/supabase/queries';
@@ -6,44 +6,48 @@ import { createSessionToken } from '@/lib/session';
 
 export const dynamic = 'force-dynamic';
 
-export async function GET(request: NextRequest): Promise<Response> {
+export async function GET(request: NextRequest): Promise<NextResponse> {
   const { searchParams } = request.nextUrl;
   const code = searchParams.get('code');
   const state = searchParams.get('state');
   const error = searchParams.get('error');
 
-  const makeErrorRedirect = (err: string) =>
-    new Response(null, {
-      status: 302,
-      headers: { Location: `http://127.0.0.1:3000/?error=${err}` },
-    });
+  const makeErrorRedirect = (err: string) => {
+    const url = new URL('/', request.url);
+    url.searchParams.set('error', err);
+    return NextResponse.redirect(url);
+  };
 
   if (error) return makeErrorRedirect('access_denied');
   if (!code) return makeErrorRedirect('no_code');
 
-  // Leer la cookie del request
-  const cookieHeader = request.headers.get('cookie') ?? '';
-  const storedState = cookieHeader
-    .split(';')
-    .map(c => c.trim())
-    .find(c => c.startsWith('spotify_auth_state='))
-    ?.split('=')[1];
-
-  console.log('[Callback] state from URL:', state);
-  console.log('[Callback] state from cookie:', storedState);
-  console.log('[Callback] all cookies:', cookieHeader);
+  const storedState = request.cookies.get('spotify_auth_state')?.value;
 
   if (!state || state !== storedState) {
-    console.error('[Callback] State mismatch! URL:', state, 'Cookie:', storedState);
+    console.error('[Callback] OAuth state validation failed');
     return makeErrorRedirect('state_mismatch');
   }
 
   try {
     const tokens = await exchangeCodeForTokens(code);
     const profile = await getUserProfile(tokens.access_token);
+    const spotifyAccountId = profile.account_id || profile.id;
+    const allowedSpotifyIds = (process.env.ALLOWED_SPOTIFY_USER_IDS ?? '')
+      .split(',')
+      .map((id) => id.trim())
+      .filter(Boolean);
+
+    if (process.env.NODE_ENV === 'production' && allowedSpotifyIds.length === 0) {
+      console.error('[Callback] Spotify allowlist is not configured');
+      return makeErrorRedirect('auth_failed');
+    }
+    if (allowedSpotifyIds.length > 0 && !allowedSpotifyIds.includes(spotifyAccountId)) {
+      return makeErrorRedirect('access_denied');
+    }
+
     const user = await upsertUser({
-      spotifyId: profile.id,
-      displayName: profile.display_name || profile.id,
+      spotifyId: spotifyAccountId,
+      displayName: profile.display_name || spotifyAccountId,
       email: profile.email || '',
       country: profile.country || '',
       avatarUrl: profile.images?.[0]?.url || '',
@@ -59,29 +63,19 @@ export async function GET(request: NextRequest): Promise<Response> {
 
     const SESSION_MAX_AGE = 60 * 60 * 24 * 7;
 
-    // Usar Web API Response nativa con headers escritos a mano
-    // para máxima compatibilidad con Next.js 16 + Turbopack
-    const headers = new Headers();
-    headers.set('Location', 'http://127.0.0.1:3000/dashboard');
-    headers.append('Set-Cookie', 
-      'spotify_auth_state=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0'
-    );
-    headers.append('Set-Cookie',
-      `temusc_session=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${SESSION_MAX_AGE}`
-    );
-
-    console.log('[Callback] Success — redirecting to /dashboard');
-
-    return new Response(null, { status: 302, headers });
+    const response = NextResponse.redirect(new URL('/dashboard', request.url));
+    response.cookies.delete('spotify_auth_state');
+    response.cookies.set('temusc_session', token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      path: '/',
+      maxAge: SESSION_MAX_AGE,
+    });
+    return response;
 
   } catch (err) {
-    console.error('[Callback] Full error:', err);
-    const detail = err instanceof Error ? err.message : 'unknown';
-    return new Response(null, {
-      status: 302,
-      headers: {
-        Location: `http://127.0.0.1:3000/?error=auth_failed&detail=${encodeURIComponent(detail)}`,
-      },
-    });
+    console.error('[Callback] Authentication failed:', err instanceof Error ? err.name : 'UnknownError');
+    return makeErrorRedirect('auth_failed');
   }
 }

@@ -3,31 +3,36 @@
 import useSWR from 'swr';
 import { useCallback } from 'react';
 import type { TeMusUser } from '@/types';
-
-const fetcher = (url: string) => fetch(url, { credentials: 'include' }).then((r) => r.json());
+import { ApiError, fetcher } from '@/lib/fetcher';
+import { useRouter } from 'next/navigation';
 
 export function useAuth() {
-  const { data, error, isLoading, mutate } = useSWR('/api/auth/me', fetcher, {
+  const router = useRouter();
+  const { data, error, isLoading, mutate } = useSWR<TeMusUser | null>('/api/auth/me', fetcher, {
     revalidateOnFocus: false,
     shouldRetryOnError: false,
   });
 
-  const user: TeMusUser | null = data?.data ?? null;
+  const user: TeMusUser | null = data ?? null;
   const isAuthenticated = !!user && !error;
+  const isUnauthorized = error instanceof ApiError && error.status === 401;
+  const isServiceError = Boolean(error) && !isUnauthorized;
 
   const logout = useCallback(async () => {
-    await fetch('/api/auth/logout', { method: 'POST' });
-    mutate(null, false);
-    window.location.href = '/';
-  }, [mutate]);
+    await fetcher('/api/auth/logout', { method: 'POST' });
+    await mutate(null, false);
+    router.replace('/');
+  }, [mutate, router]);
 
   const login = useCallback(() => {
-    window.location.href = '/api/auth/login';
-  }, []);
+    router.push('/api/auth/login');
+  }, [router]);
 
   return {
     user,
     isAuthenticated,
+    isUnauthorized,
+    isServiceError,
     isLoading,
     error,
     login,

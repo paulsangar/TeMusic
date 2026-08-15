@@ -159,7 +159,7 @@ export default function HistoryPage() {
             <div style={{ fontSize: '48px', marginBottom: '16px' }}>📸</div>
             <h3 style={{ fontSize: '16px', fontWeight: 600, marginBottom: '8px' }}>No snapshots yet</h3>
             <p style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
-              Click &quot;Save Snapshot&quot; on your dashboard to capture your current metrics.
+              Click &quot;Refresh&quot; on your dashboard to capture your current metrics.
             </p>
           </div>
         )}

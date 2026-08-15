@@ -14,11 +14,11 @@ let supabaseInstance: SupabaseClient | null = null;
 export function getSupabase(): SupabaseClient {
   if (supabaseInstance) return supabaseInstance;
 
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const url = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.SUPABASE_SECRET_KEY ?? process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-  if (!url) throw new Error('NEXT_PUBLIC_SUPABASE_URL is not set');
-  if (!key) throw new Error('SUPABASE_SERVICE_ROLE_KEY is not set');
+  if (!url) throw new Error('Supabase URL is not configured');
+  if (!key) throw new Error('Supabase server key is not configured');
 
   supabaseInstance = createClient(url, key, {
     auth: {

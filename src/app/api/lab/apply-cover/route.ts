@@ -4,12 +4,12 @@
 // ============================================================
 
 import { NextRequest } from 'next/server';
-import { getAuthenticatedUser, unauthorizedResponse } from '@/lib/auth-middleware';
-import { uploadPlaylistCover } from '@/lib/spotify/client';
+import { authenticateRequest, withSpotifyRetry } from '@/lib/auth-middleware';
+import { uploadPlaylistCover, spotifyErrorResponse } from '@/lib/spotify/client';
 
 export async function POST(request: NextRequest) {
-  const auth = await getAuthenticatedUser();
-  if (!auth) return unauthorizedResponse();
+  const { auth, errorResponse } = await authenticateRequest();
+  if (!auth) return errorResponse;
 
   try {
     const body = await request.json();
@@ -31,7 +31,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    await uploadPlaylistCover(auth.accessToken, playlistId, imageBase64);
+    await withSpotifyRetry(auth, (accessToken) => uploadPlaylistCover(accessToken, playlistId, imageBase64));
 
     return Response.json({
       data: { success: true, playlistId },
@@ -40,9 +40,6 @@ export async function POST(request: NextRequest) {
     });
   } catch (error) {
     console.error('Apply cover error:', error);
-    return Response.json(
-      { data: null, error: 'Failed to apply playlist cover', status: 500 },
-      { status: 500 },
-    );
+    return spotifyErrorResponse(error, 'Failed to apply playlist cover');
   }
 }
