@@ -7,10 +7,19 @@ import type { SpotifyTokens } from './types';
 const SPOTIFY_AUTH_URL = 'https://accounts.spotify.com/authorize';
 const SPOTIFY_TOKEN_URL = 'https://accounts.spotify.com/api/token';
 
+export class SpotifyAuthError extends Error {
+  constructor(
+    public status: number,
+    public retryAfter: number | null = null,
+  ) {
+    super(`Spotify authorization request failed with status ${status}`);
+    this.name = 'SpotifyAuthError';
+  }
+}
+
 // All scopes TeMusc needs
 const SCOPES = [
   // Auth & profile
-  'user-read-email',
   'user-read-private',
   // Metrics (OS)
   'user-top-read',
@@ -80,8 +89,12 @@ export async function exchangeCodeForTokens(code: string): Promise<SpotifyTokens
   });
 
   if (!response.ok) {
-    const error = await response.text();
-    throw new Error(`Spotify token exchange failed: ${response.status} — ${error}`);
+    const retryAfterHeader = response.headers.get('retry-after');
+    const retryAfter = retryAfterHeader ? Number.parseInt(retryAfterHeader, 10) : null;
+    throw new SpotifyAuthError(
+      response.status,
+      Number.isFinite(retryAfter) ? retryAfter : null,
+    );
   }
 
   return response.json();
@@ -106,8 +119,12 @@ export async function refreshAccessToken(refreshToken: string): Promise<SpotifyT
   });
 
   if (!response.ok) {
-    const error = await response.text();
-    throw new Error(`Spotify token refresh failed: ${response.status} — ${error}`);
+    const retryAfterHeader = response.headers.get('retry-after');
+    const retryAfter = retryAfterHeader ? Number.parseInt(retryAfterHeader, 10) : null;
+    throw new SpotifyAuthError(
+      response.status,
+      Number.isFinite(retryAfter) ? retryAfter : null,
+    );
   }
 
   const tokens: SpotifyTokens = await response.json();

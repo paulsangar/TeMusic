@@ -21,7 +21,7 @@
 
 ## Prerequisites
 
-- Node.js 18+
+- Node.js 20.9+
 - npm
 - A [Spotify Developer Application](https://developer.spotify.com/dashboard)
 - A [Supabase Project](https://supabase.com)
@@ -44,7 +44,7 @@ npm install
 ### 3. Configure environment variables
 
 ```bash
-cp .env.local.example .env.local
+cp .env.example .env.local
 ```
 
 Edit `.env.local` with your credentials:
@@ -53,25 +53,24 @@ Edit `.env.local` with your credentials:
 |---|---|
 | `SPOTIFY_CLIENT_ID` | [Spotify Dashboard](https://developer.spotify.com/dashboard) → Create App → Client ID |
 | `SPOTIFY_CLIENT_SECRET` | Same Spotify app → Settings → Client Secret |
-| `SPOTIFY_REDIRECT_URI` | Set to `http://localhost:3000/api/auth/callback` (add this in Spotify app settings too) |
-| `NEXT_PUBLIC_SUPABASE_URL` | [Supabase Dashboard](https://supabase.com) → Project Settings → API → URL |
-| `SUPABASE_SERVICE_ROLE_KEY` | Same page → `service_role` key (keep secret!) |
+| `SPOTIFY_REDIRECT_URI` | Local: `http://127.0.0.1:3000/api/auth/callback`; production: the exact canonical HTTPS callback |
+| `ALLOWED_SPOTIFY_USER_IDS` | Comma-separated Spotify account IDs allowed to use this personal dashboard |
+| `SUPABASE_URL` | [Supabase Dashboard](https://supabase.com) → Project Settings → API → URL |
+| `SUPABASE_SECRET_KEY` | A rotated `sb_secret_...` server key; never expose it to browser code |
 | `SESSION_SECRET` | Run `openssl rand -hex 32` to generate |
+| `CRON_SECRET` | A separate random secret; cron fails closed when this is absent |
 
 ### 4. Set up the database
 
-Go to your Supabase project → SQL Editor → paste and run:
-
-```
-supabase/migrations/001_initial_schema.sql
-```
+Apply the versioned files in `supabase/migrations/` in order. Existing projects
+must reconcile their remote migration history before running `db push`.
 
 ### 5. Configure Spotify App
 
 In your [Spotify Developer Dashboard](https://developer.spotify.com/dashboard):
 
 1. Edit your app settings
-2. Add Redirect URI: `http://localhost:3000/api/auth/callback`
+2. Add Redirect URI: `http://127.0.0.1:3000/api/auth/callback`
 3. For production, also add: `https://your-domain.vercel.app/api/auth/callback`
 
 ### 6. Run locally
@@ -80,16 +79,22 @@ In your [Spotify Developer Dashboard](https://developer.spotify.com/dashboard):
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) and click **Connect with Spotify**.
+Open [http://127.0.0.1:3000](http://127.0.0.1:3000) and click **Connect with Spotify**.
 
 ## Deploy to Vercel
 
-1. Push to GitHub
-2. Import project in [Vercel](https://vercel.com)
-3. Add all environment variables from `.env.local`
-4. Update `SPOTIFY_REDIRECT_URI` to your Vercel URL
-5. Add the Vercel callback URL to your Spotify app's Redirect URIs
-6. Deploy!
+Do not deploy until the previously exposed Supabase key has been rotated and
+the Git history has been cleaned. Then:
+
+1. Run secret scanning, lint and the production build.
+2. Push a reviewed branch to GitHub; do not commit `.env.local`.
+3. Import the repository in Vercel and add the variables from `.env.example`
+   with real values only in Vercel's encrypted environment settings.
+4. Set `SPOTIFY_REDIRECT_URI` to the final canonical HTTPS callback and add the
+   exact same URI in the Spotify Developer Dashboard.
+5. Configure `ALLOWED_SPOTIFY_USER_IDS` before the first production login.
+6. Deploy a preview, validate OAuth and read-only dashboard loading, then
+   promote to production.
 
 ## Project Structure
 

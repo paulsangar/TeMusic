@@ -3,27 +3,18 @@
 // Featured and relevant public playlists.
 // ============================================================
 
-import { getAuthenticatedUser, unauthorizedResponse } from '@/lib/auth-middleware';
-import { getFeaturedPlaylists, searchPlaylists, getTopArtists } from '@/lib/spotify/client';
+import { authenticateRequest, withSpotifyRetry } from '@/lib/auth-middleware';
+import { searchPlaylists, getTopArtists, spotifyErrorResponse } from '@/lib/spotify/client';
 import { mapPlaylist } from '@/lib/utils';
 import type { SpotifyPlaylistItem } from '@/types';
 import type { SpotifyPlaylistRaw } from '@/lib/spotify/types';
 
 export async function GET() {
-  const auth = await getAuthenticatedUser();
-  if (!auth) return unauthorizedResponse();
+  const { auth, errorResponse } = await authenticateRequest();
+  if (!auth) return errorResponse;
 
   try {
-    // Get featured playlists and user's top artists safely
-    const results = await Promise.allSettled([
-      getFeaturedPlaylists(auth.accessToken, 20),
-      getTopArtists(auth.accessToken, 'medium_term', 20),
-    ]);
-
-    const featuredRaw = results[0].status === 'fulfilled' ? results[0].value?.playlists?.items || [] : [];
-    const topArtists = results[1].status === 'fulfilled' ? results[1].value || [] : [];
-
-    const featured = featuredRaw.filter(Boolean).map(mapPlaylist);
+    const topArtists = await withSpotifyRetry(auth, (accessToken) => getTopArtists(accessToken, 'medium_term', 20));
 
     // Extract top genres from user's top artists
     const genreCounts = new Map<string, number>();
@@ -45,14 +36,12 @@ export async function GET() {
       topGenres = ['latin', 'pop', 'rock'];
     }
 
-    // Search for playlists matching top genres safely
-    const genreResults = await Promise.allSettled(
-      topGenres.map((genre) => searchPlaylists(auth.accessToken, genre, 10)),
-    );
+    const genreResults = await withSpotifyRetry(auth, (accessToken) => Promise.all(
+      topGenres.map((genre) => searchPlaylists(accessToken, genre, 10)),
+    ));
 
     const genrePlaylists: SpotifyPlaylistItem[] = genreResults
-      .filter((r): r is PromiseFulfilledResult<SpotifyPlaylistRaw[]> => r.status === 'fulfilled')
-      .flatMap((r) => r.value || [])
+      .flatMap((playlists: SpotifyPlaylistRaw[]) => playlists)
       .filter(Boolean)
       .map(mapPlaylist);
 
@@ -60,7 +49,7 @@ export async function GET() {
     const seen = new Set<string>();
     const allPlaylists: SpotifyPlaylistItem[] = [];
 
-    for (const pl of [...featured, ...genrePlaylists]) {
+    for (const pl of genrePlaylists) {
       if (pl?.id && !seen.has(pl.id)) {
         seen.add(pl.id);
         allPlaylists.push(pl);
@@ -69,8 +58,8 @@ export async function GET() {
 
     return Response.json({
       data: {
-        featured: featured.slice(0, 10),
-        forYou: genrePlaylists.slice(0, 15),
+        featured: [],
+        forYou: allPlaylists.slice(0, 15),
         topGenres,
         all: allPlaylists.slice(0, 30),
       },
@@ -79,9 +68,6 @@ export async function GET() {
     });
   } catch (error) {
     console.error('Public playlists error:', error);
-    return Response.json(
-      { data: null, error: 'Failed to fetch public playlists', status: 500 },
-      { status: 500 },
-    );
+    return spotifyErrorResponse(error, 'Failed to fetch public playlists');
   }
 }

@@ -57,7 +57,8 @@ export interface MetricsOverview {
   };
   recentlyPlayed: RecentlyPlayedItem[];
   activitySummary: ActivitySummary;
-  lastUpdated: string;
+  lastUpdated: string | null;
+  hasData: boolean;
 }
 
 export interface ActivitySummary {
@@ -91,7 +92,7 @@ export interface PlaylistAnalysis {
   duplicateCount: number;
   genreDistribution: Record<string, number>;
   yearDistribution: Record<string, number>;
-  averagePopularity: number;
+  averagePopularity: number | null;
 }
 
 export interface DuplicateGroup {
@@ -156,7 +157,7 @@ export interface SpotifyTrackItem {
     releaseYear?: string;
   };
   durationMs: number;
-  popularity: number;
+  popularity: number | null;
   previewUrl: string | null;
   externalUrl: string;
 }
@@ -166,8 +167,8 @@ export interface SpotifyArtistItem {
   name: string;
   genres: string[];
   images: SpotifyImage[];
-  popularity: number;
-  followers: number;
+  popularity: number | null;
+  followers: number | null;
   externalUrl: string;
 }
 

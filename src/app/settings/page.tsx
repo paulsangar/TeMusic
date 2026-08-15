@@ -68,9 +68,9 @@ export default function SettingsPage() {
         </p>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
           {[
-            { label: 'Weekly Metrics Summary', desc: 'Your listening stats each week', enabled: true },
-            { label: 'Discovery Alerts', desc: 'New unexplored artists and playlists', enabled: true },
-            { label: 'Playlist Health', desc: 'Duplicate warnings and cleanup suggestions', enabled: true },
+            { label: 'Weekly Metrics Summary', desc: 'Your listening stats each week' },
+            { label: 'Discovery Alerts', desc: 'New unexplored artists and playlists' },
+            { label: 'Playlist Health', desc: 'Duplicate warnings and cleanup suggestions' },
           ].map((pref) => (
             <div
               key={pref.label}
@@ -87,9 +87,7 @@ export default function SettingsPage() {
                 <div style={{ fontSize: '14px', fontWeight: 500 }}>{pref.label}</div>
                 <div style={{ fontSize: '12px', color: 'var(--text-tertiary)' }}>{pref.desc}</div>
               </div>
-              <Badge variant={pref.enabled ? 'success' : 'default'}>
-                {pref.enabled ? 'Active' : 'Off'}
-              </Badge>
+              <Badge variant="default">Planned</Badge>
             </div>
           ))}
         </div>

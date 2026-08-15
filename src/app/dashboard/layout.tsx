@@ -2,6 +2,7 @@
 
 import React from 'react';
 import Sidebar from '@/components/layout/Sidebar';
+import AuthServiceUnavailable from '@/components/auth/AuthServiceUnavailable';
 import { useAuth } from '@/hooks/useAuth';
 
 export default function DashboardLayout({
@@ -9,7 +10,7 @@ export default function DashboardLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const { isAuthenticated, isLoading } = useAuth();
+  const { isAuthenticated, isLoading, isServiceError, login, mutate } = useAuth();
 
   if (isLoading) {
     return (
@@ -46,6 +47,10 @@ export default function DashboardLayout({
     );
   }
 
+  if (isServiceError) {
+    return <AuthServiceUnavailable onRetry={() => { void mutate(); }} />;
+  }
+
   if (!isAuthenticated) {
     return (
       <div
@@ -67,7 +72,7 @@ export default function DashboardLayout({
           Your session could not be verified. Please log in again with Spotify.
         </p>
         <button
-          onClick={() => { window.location.href = '/api/auth/login'; }}
+          onClick={login}
           style={{
             padding: '10px 24px',
             borderRadius: 'var(--radius-full)',

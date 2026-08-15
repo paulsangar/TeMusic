@@ -3,11 +3,11 @@
 // Returns current authenticated user profile.
 // ============================================================
 
-import { getAuthenticatedUser, unauthorizedResponse } from '@/lib/auth-middleware';
+import { authenticateRequest } from '@/lib/auth-middleware';
 
 export async function GET() {
-  const auth = await getAuthenticatedUser();
-  if (!auth) return unauthorizedResponse();
+  const { auth, errorResponse } = await authenticateRequest();
+  if (!auth) return errorResponse;
 
   const { user } = auth;
 

@@ -12,12 +12,13 @@ export interface SpotifyTokens {
 
 export interface SpotifyUserProfile {
   id: string;
+  account_id?: string;
   display_name: string;
-  email: string;
-  country: string;
+  email?: string;
+  country?: string;
   images: SpotifyImageRaw[];
-  followers: { total: number };
-  product: string;
+  followers?: { total: number };
+  product?: string;
   external_urls: { spotify: string };
 }
 
@@ -39,7 +40,7 @@ export interface SpotifyTrackRaw {
     release_date: string;
   };
   duration_ms: number;
-  popularity: number;
+  popularity?: number;
   preview_url: string | null;
   external_urls: { spotify: string };
 }
@@ -55,8 +56,8 @@ export interface SpotifyArtistRaw {
   name: string;
   genres: string[];
   images: SpotifyImageRaw[];
-  popularity: number;
-  followers: { total: number };
+  popularity?: number;
+  followers?: { total: number };
   external_urls: { spotify: string };
 }
 
@@ -69,7 +70,8 @@ export interface SpotifyPlaylistRaw {
     id: string;
     display_name: string;
   };
-  tracks: { total: number; items?: SpotifyPlaylistTrackRaw[] };
+  tracks?: { total: number; items?: SpotifyPlaylistTrackRaw[] };
+  items?: { total: number; items?: SpotifyPlaylistTrackRaw[] };
   public: boolean;
   collaborative: boolean;
   external_urls: { spotify: string };

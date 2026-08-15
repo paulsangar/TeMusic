@@ -52,8 +52,8 @@ export function SkeletonList({ count = 5 }: { count?: number }) {
         <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '8px 0' }}>
           <Skeleton width="48px" height="48px" borderRadius="var(--radius-sm)" />
           <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '6px' }}>
-            <Skeleton width={`${60 + Math.random() * 30}%`} height="14px" />
-            <Skeleton width={`${30 + Math.random() * 20}%`} height="12px" />
+            <Skeleton width={`${60 + (i % 4) * 8}%`} height="14px" />
+            <Skeleton width={`${30 + (i % 5) * 4}%`} height="12px" />
           </div>
         </div>
       ))}

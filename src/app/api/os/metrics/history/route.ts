@@ -4,12 +4,12 @@
 // ============================================================
 
 import { NextRequest } from 'next/server';
-import { getAuthenticatedUser, unauthorizedResponse } from '@/lib/auth-middleware';
+import { authenticateRequest } from '@/lib/auth-middleware';
 import { getMetricsHistory } from '@/lib/supabase/queries';
 
 export async function GET(request: NextRequest) {
-  const auth = await getAuthenticatedUser();
-  if (!auth) return unauthorizedResponse();
+  const { auth, errorResponse } = await authenticateRequest();
+  if (!auth) return errorResponse;
 
   const limit = parseInt(request.nextUrl.searchParams.get('limit') || '20', 10);
 

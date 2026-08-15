@@ -11,11 +11,12 @@ import { usePlaylistDetail, usePlaylistAnalysis, usePlaylistActions } from '@/ho
 export default function PlaylistDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const { data: playlist, isLoading: loadingPlaylist, error: errorPlaylist, mutate: mutatePlaylist } = usePlaylistDetail(id);
-  const { data: analysis, isLoading: loadingAnalysis } = usePlaylistAnalysis(id);
-  const { cleanPlaylist, isLoading: actionLoading } = usePlaylistActions();
+  const { data: analysis, isLoading: loadingAnalysis, error: errorAnalysis } = usePlaylistAnalysis(id);
+  const { cleanPlaylist, isLoading: actionLoading, error: actionError } = usePlaylistActions();
   const [cleanResult, setCleanResult] = useState<{ newPlaylistName: string; removedCount: number } | null>(null);
 
   const handleClean = async () => {
+    setCleanResult(null);
     const result = await cleanPlaylist({
       playlistId: id,
       removeDuplicates: true,
@@ -57,6 +58,14 @@ export default function PlaylistDetailPage({ params }: { params: Promise<{ id: s
       />
 
       {/* Analysis Cards */}
+      {errorAnalysis && (
+        <Card padding="md" style={{ marginBottom: '20px', borderColor: 'rgba(239, 68, 68, 0.35)' }}>
+          <p style={{ color: '#f87171', fontSize: '13px' }}>
+            ⚠️ Playlist analysis is unavailable: {errorAnalysis.message}
+          </p>
+        </Card>
+      )}
+
       {analysis && (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '12px', marginBottom: '24px' }}>
           <Card padding="sm">
@@ -67,7 +76,9 @@ export default function PlaylistDetailPage({ params }: { params: Promise<{ id: s
           </Card>
           <Card padding="sm">
             <div style={{ fontSize: '11px', color: 'var(--text-tertiary)', fontWeight: 600, textTransform: 'uppercase' }}>Avg Popularity</div>
-            <div style={{ fontSize: '24px', fontWeight: 700, marginTop: '4px' }}>{analysis.averagePopularity}</div>
+            <div style={{ fontSize: '24px', fontWeight: 700, marginTop: '4px' }}>
+              {analysis.averagePopularity ?? 'N/A'}
+            </div>
           </Card>
           <Card padding="sm">
             <div style={{ fontSize: '11px', color: 'var(--text-tertiary)', fontWeight: 600, textTransform: 'uppercase' }}>Unique Artists</div>
@@ -84,7 +95,7 @@ export default function PlaylistDetailPage({ params }: { params: Promise<{ id: s
 
       {/* Actions */}
       <div style={{ display: 'flex', gap: '12px', marginBottom: '24px' }}>
-        <Button variant="primary" size="sm" onClick={handleClean} isLoading={actionLoading}>
+        <Button variant="primary" size="sm" onClick={handleClean} isLoading={actionLoading} disabled={actionLoading || Boolean(errorAnalysis) || !playlist}>
           🧹 Clone & Clean (Remove Duplicates)
         </Button>
         {playlist?.externalUrl && (
@@ -95,6 +106,12 @@ export default function PlaylistDetailPage({ params }: { params: Promise<{ id: s
           </a>
         )}
       </div>
+
+      {actionError && (
+        <Card padding="md" style={{ marginBottom: '24px', borderColor: 'rgba(239, 68, 68, 0.35)' }}>
+          <p style={{ color: '#f87171', fontSize: '13px' }}>⚠️ Clean action failed: {actionError}</p>
+        </Card>
+      )}
 
       {cleanResult && (
         <Card padding="md" variant="lab" style={{ marginBottom: '24px' }}>
@@ -129,7 +146,7 @@ export default function PlaylistDetailPage({ params }: { params: Promise<{ id: s
           <SkeletonList count={15} />
         ) : playlist?.tracks && playlist.tracks.length > 0 ? (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', maxHeight: '600px', overflowY: 'auto' }}>
-            {playlist.tracks.map((track: { id: string; name: string; artists: { name: string }[]; album: { images: { url: string }[]; releaseYear?: string }; popularity: number; externalUrl: string }, i: number) => (
+            {playlist.tracks.map((track: { id: string; name: string; artists: { name: string }[]; album: { images: { url: string }[]; releaseYear?: string }; popularity: number | null; externalUrl: string }, i: number) => (
               <a
                 key={`${track.id}-${i}`}
                 href={track.externalUrl}
@@ -158,7 +175,7 @@ export default function PlaylistDetailPage({ params }: { params: Promise<{ id: s
                 {track.album.releaseYear && (
                   <Badge variant="lab" size="sm">{track.album.releaseYear}</Badge>
                 )}
-                <Badge variant="default" size="sm">{track.popularity}</Badge>
+                {track.popularity !== null && <Badge variant="default" size="sm">{track.popularity}</Badge>}
               </a>
             ))}
           </div>

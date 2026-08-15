@@ -21,6 +21,7 @@ export interface MetricsSnapshotRow {
   user_id: string;
   captured_at: string;
   time_range: string;
+  sync_batch_id: string | null;
   top_tracks: unknown;        // JSONB
   top_artists: unknown;       // JSONB
   recently_played: unknown;   // JSONB

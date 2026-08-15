@@ -3,56 +3,66 @@
 // Combined metrics overview: top tracks, artists, recently played
 // ============================================================
 
-import { getAuthenticatedUser, unauthorizedResponse } from '@/lib/auth-middleware';
+import { authenticateRequest } from '@/lib/auth-middleware';
 import { getMetricsHistory } from '@/lib/supabase/queries';
-import { syncMetricsForUser } from '@/lib/spotify/sync';
 import type { TimeRange } from '@/lib/spotify/types';
+import type { MetricsSnapshotRow } from '@/lib/supabase/types';
+import type { ActivitySummary, RecentlyPlayedItem, SpotifyArtistItem, SpotifyTrackItem } from '@/types';
 
 export async function GET() {
-  const auth = await getAuthenticatedUser();
-  if (!auth) return unauthorizedResponse();
+  const { auth, errorResponse } = await authenticateRequest();
+  if (!auth) return errorResponse;
 
   try {
-    const history = await getMetricsHistory(auth.user.id, 10);
-    const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
+    const history = await getMetricsHistory(auth.user.id, 100);
     const timeRanges: TimeRange[] = ['short_term', 'medium_term', 'long_term'];
-    const snapshots: Record<string, any> = {};
+    const snapshots: Partial<Record<TimeRange, MetricsSnapshotRow>> = {};
 
-    for (const tr of timeRanges) {
-      let snapshot = history.find(s => s.time_range === tr);
-      const isExpired = !snapshot || new Date(snapshot.captured_at) < oneHourAgo;
-      
-      if (isExpired) {
-        try {
-          snapshot = await syncMetricsForUser(auth.user.id, auth.accessToken, tr);
-        } catch (e) {
-          console.error(`Failed to sync ${tr}:`, e);
-          // If sync fails (e.g. 429), use expired if available, else empty
-          if (!snapshot) snapshot = { top_tracks: [], top_artists: [], recently_played: [], activity_summary: null } as any;
-        }
+    const completeBatchId = history.find((candidate) => {
+      if (!candidate.sync_batch_id) return false;
+      const ranges = new Set(
+        history
+          .filter((snapshot) => snapshot.sync_batch_id === candidate.sync_batch_id)
+          .map((snapshot) => snapshot.time_range),
+      );
+      return timeRanges.every((range) => ranges.has(range));
+    })?.sync_batch_id;
+
+    if (completeBatchId) {
+      for (const tr of timeRanges) {
+        snapshots[tr] = history.find(
+          (snapshot) => snapshot.sync_batch_id === completeBatchId && snapshot.time_range === tr,
+        );
       }
-      snapshots[tr] = snapshot;
     }
 
-    const recentlyPlayed = snapshots['medium_term']?.recently_played || [];
-    const activitySummary = snapshots['medium_term']?.activity_summary || null;
-    const lastUpdated = snapshots['medium_term']?.captured_at || new Date().toISOString();
+    const sourceSnapshot = snapshots.medium_term ?? snapshots.short_term ?? snapshots.long_term;
+    const recentlyPlayed = (sourceSnapshot?.recently_played ?? []) as RecentlyPlayedItem[];
+    const activitySummary = (sourceSnapshot?.activity_summary ?? {
+      byHour: {},
+      byDay: {},
+      totalTracksThisWeek: 0,
+      uniqueArtistsThisWeek: 0,
+    }) as ActivitySummary;
+    const lastUpdated = sourceSnapshot?.captured_at ?? null;
+    const hasData = Boolean(completeBatchId && sourceSnapshot);
 
     return Response.json({
       data: {
         topTracks: {
-          shortTerm: snapshots['short_term']?.top_tracks || [],
-          mediumTerm: snapshots['medium_term']?.top_tracks || [],
-          longTerm: snapshots['long_term']?.top_tracks || [],
+          shortTerm: (snapshots.short_term?.top_tracks ?? []) as SpotifyTrackItem[],
+          mediumTerm: (snapshots.medium_term?.top_tracks ?? []) as SpotifyTrackItem[],
+          longTerm: (snapshots.long_term?.top_tracks ?? []) as SpotifyTrackItem[],
         },
         topArtists: {
-          shortTerm: snapshots['short_term']?.top_artists || [],
-          mediumTerm: snapshots['medium_term']?.top_artists || [],
-          longTerm: snapshots['long_term']?.top_artists || [],
+          shortTerm: (snapshots.short_term?.top_artists ?? []) as SpotifyArtistItem[],
+          mediumTerm: (snapshots.medium_term?.top_artists ?? []) as SpotifyArtistItem[],
+          longTerm: (snapshots.long_term?.top_artists ?? []) as SpotifyArtistItem[],
         },
         recentlyPlayed,
         activitySummary,
         lastUpdated,
+        hasData,
       },
       error: null,
       status: 200,

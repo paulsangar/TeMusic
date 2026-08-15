@@ -4,40 +4,24 @@
 // ============================================================
 
 import { NextRequest } from 'next/server';
-import { getAuthenticatedUser, unauthorizedResponse } from '@/lib/auth-middleware';
-import { getPlaylist, getPlaylistTracks } from '@/lib/spotify/client';
+import { authenticateRequest, withSpotifyRetry } from '@/lib/auth-middleware';
+import { getPlaylist, getPlaylistTracks, spotifyErrorResponse } from '@/lib/spotify/client';
 import type { PlaylistAnalysis, DuplicateGroup } from '@/types';
 
 export async function GET(
   _request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const auth = await getAuthenticatedUser();
-  if (!auth) return unauthorizedResponse();
+  const { auth, errorResponse } = await authenticateRequest();
+  if (!auth) return errorResponse;
 
   const { id } = await params;
 
   try {
-    const results = await Promise.allSettled([
-      getPlaylist(auth.accessToken, id),
-      getPlaylistTracks(auth.accessToken, id),
-    ]);
-
-    if (results[0].status === 'rejected') {
-      const reason = results[0].reason?.message || String(results[0].reason);
-      console.error('[Analyze] getPlaylist failed:', reason);
-      return Response.json(
-        { data: null, error: `Failed to analyze playlist: ${reason}`, status: 500 },
-        { status: 500 },
-      );
-    }
-
-    const playlist = results[0].value;
-    const trackItems = results[1].status === 'fulfilled' ? (results[1].value || []) : [];
-
-    if (results[1].status === 'rejected') {
-      console.error('[Analyze] getPlaylistTracks failed:', results[1].reason?.message || results[1].reason);
-    }
+    const [playlist, trackItems] = await withSpotifyRetry(auth, (accessToken) => Promise.all([
+      getPlaylist(accessToken, id),
+      getPlaylistTracks(accessToken, id),
+    ]));
 
     // Defensive filtering: skip null items AND null tracks (deleted, podcasts)
     const validTracks = trackItems.filter(
@@ -93,9 +77,12 @@ export async function GET(
       }
     }
 
-    // Average popularity
-    const totalPop = validTracks.reduce((sum, item) => sum + ((item.track || item.item)!.popularity || 0), 0);
-    const avgPop = validTracks.length > 0 ? Math.round(totalPop / validTracks.length) : 0;
+    const popularityValues = validTracks
+      .map((item) => (item.track || item.item)!.popularity)
+      .filter((value): value is number => typeof value === 'number');
+    const avgPop = popularityValues.length > 0
+      ? Math.round(popularityValues.reduce((sum, value) => sum + value, 0) / popularityValues.length)
+      : null;
 
     const analysis: PlaylistAnalysis = {
       playlistId: id,
@@ -114,12 +101,7 @@ export async function GET(
       status: 200,
     });
   } catch (error) {
-    const msg = error instanceof Error ? error.message : String(error);
-    console.error('[Analyze] Unexpected error:', msg);
-    return Response.json(
-      { data: null, error: `Failed to analyze playlist: ${msg}`, status: 500 },
-      { status: 500 },
-    );
+    console.error('[Analyze] Request failed:', error instanceof Error ? error.name : 'UnknownError');
+    return spotifyErrorResponse(error, 'Failed to analyze complete playlist data');
   }
 }
-

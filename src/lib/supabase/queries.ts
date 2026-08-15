@@ -47,16 +47,16 @@ export async function upsertUser(data: {
 
 export async function getUserById(id: string): Promise<UserRow | null> {
   const db = getSupabase();
-  const { data, error } = await db.from('users').select('*').eq('id', id).single();
-  if (error) return null;
-  return data as UserRow;
+  const { data, error } = await db.from('users').select('*').eq('id', id).maybeSingle();
+  if (error) throw new Error(`Failed to get user: ${error.message}`);
+  return data as UserRow | null;
 }
 
 export async function getUserBySpotifyId(spotifyId: string): Promise<UserRow | null> {
   const db = getSupabase();
-  const { data, error } = await db.from('users').select('*').eq('spotify_id', spotifyId).single();
-  if (error) return null;
-  return data as UserRow;
+  const { data, error } = await db.from('users').select('*').eq('spotify_id', spotifyId).maybeSingle();
+  if (error) throw new Error(`Failed to get Spotify user: ${error.message}`);
+  return data as UserRow | null;
 }
 
 export async function updateUserTokens(
@@ -89,6 +89,7 @@ export async function saveMetricsSnapshot(data: {
   recentlyPlayed: unknown;
   activitySummary: unknown;
   aiSummary?: string;
+  syncBatchId?: string;
 }): Promise<MetricsSnapshotRow> {
   const db = getSupabase();
   const { data: snapshot, error } = await db
@@ -96,6 +97,7 @@ export async function saveMetricsSnapshot(data: {
     .insert({
       user_id: data.userId,
       time_range: data.timeRange,
+      sync_batch_id: data.syncBatchId || null,
       top_tracks: data.topTracks,
       top_artists: data.topArtists,
       recently_played: data.recentlyPlayed,
@@ -107,6 +109,34 @@ export async function saveMetricsSnapshot(data: {
 
   if (error) throw new Error(`Failed to save snapshot: ${error.message}`);
   return snapshot as MetricsSnapshotRow;
+}
+
+export async function saveMetricsSnapshots(data: Array<{
+  userId: string;
+  timeRange: string;
+  syncBatchId: string;
+  topTracks: unknown;
+  topArtists: unknown;
+  recentlyPlayed: unknown;
+  activitySummary: unknown;
+}>): Promise<MetricsSnapshotRow[]> {
+  const db = getSupabase();
+  const { data: snapshots, error } = await db
+    .from('metrics_snapshots')
+    .insert(data.map((snapshot) => ({
+      user_id: snapshot.userId,
+      time_range: snapshot.timeRange,
+      sync_batch_id: snapshot.syncBatchId,
+      top_tracks: snapshot.topTracks,
+      top_artists: snapshot.topArtists,
+      recently_played: snapshot.recentlyPlayed,
+      activity_summary: snapshot.activitySummary,
+      ai_summary: null,
+    })))
+    .select();
+
+  if (error) throw new Error(`Failed to save metric snapshot batch: ${error.message}`);
+  return (snapshots || []) as MetricsSnapshotRow[];
 }
 
 export async function getMetricsHistory(

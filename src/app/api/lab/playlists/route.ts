@@ -3,32 +3,24 @@
 // List all user playlists with metadata.
 // ============================================================
 
-import { getAuthenticatedUser, unauthorizedResponse } from '@/lib/auth-middleware';
-import { getAllUserPlaylists } from '@/lib/spotify/client';
+import { authenticateRequest, withSpotifyRetry } from '@/lib/auth-middleware';
+import { getAllUserPlaylists, spotifyErrorResponse } from '@/lib/spotify/client';
 import { mapPlaylist } from '@/lib/utils';
 
 export async function GET() {
-  const auth = await getAuthenticatedUser();
-  if (!auth) return unauthorizedResponse();
+  const { auth, errorResponse } = await authenticateRequest();
+  if (!auth) return errorResponse;
 
   try {
-    const playlists = await getAllUserPlaylists(auth.accessToken);
+    const playlists = await withSpotifyRetry(auth, getAllUserPlaylists);
     
-    if (playlists.length > 0) {
-      console.log('[Playlists API] First playlist raw tracks object:', playlists[0].tracks);
-      console.log('[Playlists API] First playlist mapped trackCount:', mapPlaylist(playlists[0]).trackCount);
-    }
-
     return Response.json({
       data: playlists.map(mapPlaylist),
       error: null,
       status: 200,
     });
   } catch (error) {
-    console.error('List playlists error:', error);
-    return Response.json(
-      { data: null, error: 'Failed to fetch playlists', status: 500 },
-      { status: 500 },
-    );
+    console.error('List playlists error:', error instanceof Error ? error.name : 'UnknownError');
+    return spotifyErrorResponse(error, 'Failed to fetch playlists');
   }
 }

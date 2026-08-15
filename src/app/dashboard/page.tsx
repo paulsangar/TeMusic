@@ -9,6 +9,7 @@ import { SkeletonList } from '@/components/ui/Skeleton';
 import { useMetricsOverview } from '@/hooks/useSpotifyData';
 import type { SpotifyTrackItem, SpotifyArtistItem } from '@/types';
 import type { TimeRange } from '@/lib/spotify/types';
+import { fetcher } from '@/lib/fetcher';
 
 type TimeRangeTab = { key: TimeRange; label: string };
 const timeRanges: TimeRangeTab[] = [
@@ -96,7 +97,7 @@ function TrackRow({ track, index }: { track: SpotifyTrackItem; index: number }) 
       </div>
       <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
         <span style={{ fontSize: '11px', color: 'var(--text-tertiary)' }}>{minutes}:{seconds}</span>
-        <Badge variant="default" size="sm">🔥 {track.popularity}</Badge>
+        {track.popularity !== null && <Badge variant="default" size="sm">🔥 {track.popularity}</Badge>}
       </div>
     </a>
   );
@@ -145,8 +146,8 @@ function ArtistRow({ artist, index }: { artist: SpotifyArtistItem; index: number
         </div>
       </div>
       <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
-        <Badge variant="os" size="sm">👥 {artist.followers ? artist.followers.toLocaleString() : '0'}</Badge>
-        <Badge variant="discovery" size="sm">⭐ {artist.popularity}</Badge>
+        {artist.followers !== null && <Badge variant="os" size="sm">👥 {artist.followers.toLocaleString()}</Badge>}
+        {artist.popularity !== null && <Badge variant="discovery" size="sm">⭐ {artist.popularity}</Badge>}
       </div>
     </a>
   );
@@ -188,19 +189,16 @@ export default function DashboardPage() {
   const [tracksRange, setTracksRange] = useState<TimeRange>('short_term');
   const [artistsRange, setArtistsRange] = useState<TimeRange>('short_term');
   const [isSaving, setIsSaving] = useState(false);
-
-  const isCooldown = React.useMemo(() => {
-    if (!overview?.lastUpdated) return false;
-    const oneHour = 60 * 60 * 1000;
-    return (Date.now() - new Date(overview.lastUpdated).getTime()) < oneHour;
-  }, [overview?.lastUpdated]);
+  const [refreshError, setRefreshError] = useState<string | null>(null);
 
   const saveSnapshot = async () => {
-    if (isCooldown) return;
     setIsSaving(true);
+    setRefreshError(null);
     try {
-      await fetch('/api/os/metrics/snapshot', { method: 'POST' });
-      mutate(); // Reload data after save
+      await fetcher('/api/os/metrics/snapshot', { method: 'POST' });
+      await mutate();
+    } catch (refreshFailure) {
+      setRefreshError(refreshFailure instanceof Error ? refreshFailure.message : 'Refresh failed');
     } finally {
       setIsSaving(false);
     }
@@ -278,22 +276,40 @@ export default function DashboardPage() {
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
             {overview?.lastUpdated && (
               <span style={{ fontSize: '12px', color: 'var(--text-tertiary)' }}>
-                {isCooldown ? `Updated ${new Date(overview.lastUpdated).toLocaleTimeString()}` : 'Data is outdated'}
+                Updated {new Date(overview.lastUpdated).toLocaleTimeString()}
               </span>
             )}
             <Button
-              variant={isCooldown ? "secondary" : "spotify"}
+              variant="spotify"
               size="sm"
               onClick={saveSnapshot}
               isLoading={isSaving}
-              disabled={isCooldown}
-              title={isCooldown ? 'Refresh limited to once per hour to save quota.' : 'Force refresh data'}
+              disabled={isSaving}
+              title="Refresh data (server-enforced hourly limit)"
             >
-              🔄 {isCooldown ? 'On Cooldown' : 'Force Refresh'}
+              🔄 Refresh
             </Button>
           </div>
         }
       />
+
+      {!isLoading && overview && !overview.hasData && (
+        <Card padding="lg" variant="os" style={{ marginBottom: '20px' }}>
+          <div style={{ textAlign: 'center', padding: '16px' }}>
+            <div style={{ fontSize: '32px', marginBottom: '8px' }}>🎧</div>
+            <h2 style={{ fontSize: '18px', fontWeight: 700, marginBottom: '6px' }}>Create your first listening snapshot</h2>
+            <p style={{ color: 'var(--text-secondary)', fontSize: '13px' }}>
+              Use Refresh to import your personal Spotify metrics. Dashboard reads are cached afterward.
+            </p>
+          </div>
+        </Card>
+      )}
+
+      {refreshError && (
+        <Card padding="md" style={{ marginBottom: '20px', borderColor: 'rgba(239, 68, 68, 0.35)' }}>
+          <p style={{ color: '#f87171', fontSize: '13px' }}>⚠️ {refreshError}</p>
+        </Card>
+      )}
 
       {/* Range Selector Bar for KPI Cards */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
@@ -326,13 +342,13 @@ export default function DashboardPage() {
       {/* KPI Cards */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px', marginBottom: '28px' }}>
         <KPICard
-          label="Tracks Played"
+          label="Recent Tracks (last 50)"
           value={overview?.activitySummary.totalTracksThisWeek ?? '—'}
           icon="🎵"
           color="var(--accent-os)"
         />
         <KPICard
-          label="Unique Artists"
+          label="Recent Artists (last 50)"
           value={overview?.activitySummary.uniqueArtistsThisWeek ?? '—'}
           icon="🎤"
           color="var(--accent-discovery)"
@@ -362,7 +378,7 @@ export default function DashboardPage() {
               Based on your last 50 played tracks
             </p>
           </div>
-          <Badge variant="os">Live Data</Badge>
+          <Badge variant="os">Cached Snapshot</Badge>
         </div>
         {isLoading ? (
           <div className="animate-shimmer" style={{ height: '100px', borderRadius: 'var(--radius-sm)' }} />

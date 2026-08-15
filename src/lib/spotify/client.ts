@@ -18,6 +18,7 @@ import type {
   RecommendationSeeds,
   TimeRange,
 } from './types';
+import { SpotifyAuthError } from './auth';
 
 const BASE_URL = 'https://api.spotify.com/v1';
 
@@ -25,15 +26,67 @@ const BASE_URL = 'https://api.spotify.com/v1';
 // Internal helpers
 // ============================================================
 
-class SpotifyApiError extends Error {
+export class SpotifyApiError extends Error {
   constructor(
     public status: number,
     public statusText: string,
-    public body: string,
+    public retryAfter: number | null = null,
   ) {
-    super(`Spotify API ${status}: ${statusText} — ${body}`);
+    super(`Spotify API request failed with status ${status}`);
     this.name = 'SpotifyApiError';
   }
+}
+
+export function spotifyErrorResponse(error: unknown, fallbackMessage: string): Response {
+  if (error instanceof SpotifyAuthError) {
+    const status = error.status === 400 || error.status === 401
+      ? 401
+      : error.status === 429
+        ? 429
+        : 502;
+    const message = status === 401
+      ? 'Spotify authorization expired. Please reconnect your account.'
+      : status === 429
+        ? 'Spotify rate limit reached. Please retry later.'
+        : fallbackMessage;
+    const headers = error.retryAfter !== null
+      ? { 'Retry-After': String(error.retryAfter) }
+      : undefined;
+    return Response.json(
+      { data: null, error: message, status },
+      { status, headers },
+    );
+  }
+
+  if (!(error instanceof SpotifyApiError)) {
+    return Response.json(
+      { data: null, error: fallbackMessage, status: 500 },
+      { status: 500 },
+    );
+  }
+
+  const status = error.status === 429
+    ? 429
+    : error.status === 401
+      ? 401
+      : error.status === 403
+        ? 403
+        : 502;
+  const message = status === 429
+    ? 'Spotify rate limit reached. Please retry later.'
+    : status === 401
+      ? 'Spotify authorization expired. Please reconnect your account.'
+      : status === 403
+        ? 'Spotify denied access to this capability.'
+        : fallbackMessage;
+  const headers = error.retryAfter !== null
+    ? { 'Retry-After': String(error.retryAfter) }
+    : undefined;
+
+  return Response.json(
+    { data: null, error: message, status },
+    { status, headers },
+  );
 }
 
 async function spotifyFetch<T>(
@@ -58,8 +111,13 @@ async function spotifyFetch<T>(
   }
 
   if (!response.ok) {
-    const body = await response.text();
-    throw new SpotifyApiError(response.status, response.statusText, body);
+    const retryAfterHeader = response.headers.get('retry-after');
+    const retryAfter = retryAfterHeader ? Number.parseInt(retryAfterHeader, 10) : null;
+    throw new SpotifyApiError(
+      response.status,
+      response.statusText,
+      Number.isFinite(retryAfter) ? retryAfter : null,
+    );
   }
 
   return response.json();
@@ -171,20 +229,13 @@ export async function getPlaylistTracks(
   let url: string | null = `/playlists/${playlistId}/items?limit=100`;
 
   while (url) {
-    try {
-      const response: SpotifyPaginatedResponse<SpotifyPlaylistTrackRaw> = await spotifyFetch(
-        accessToken,
-        url,
-      );
-      // Defensive: filter null/undefined items (deleted tracks, podcast episodes)
-      const validItems = (response.items || []).filter((item) => item != null);
-      allTracks.push(...validItems);
-      url = response.next;
-    } catch (pageError) {
-      // If a page fails, log and return what we have so far rather than losing everything
-      console.error(`[getPlaylistTracks] Pagination error at ${url}:`, pageError instanceof Error ? pageError.message : pageError);
-      break;
-    }
+    const response: SpotifyPaginatedResponse<SpotifyPlaylistTrackRaw> = await spotifyFetch(
+      accessToken,
+      url,
+    );
+    const validItems = (response.items || []).filter((item) => item != null);
+    allTracks.push(...validItems);
+    url = response.next;
   }
 
   return allTracks;
@@ -199,7 +250,6 @@ export async function getPlaylist(
 
 export async function createPlaylist(
   accessToken: string,
-  userId: string,
   name: string,
   options: {
     description?: string;
@@ -209,7 +259,7 @@ export async function createPlaylist(
 ): Promise<SpotifyPlaylistRaw> {
   return spotifyFetch<SpotifyPlaylistRaw>(
     accessToken,
-    `/users/${userId}/playlists`,
+    '/me/playlists',
     {
       method: 'POST',
       body: JSON.stringify({
@@ -258,11 +308,11 @@ export async function removeTracksFromPlaylist(
     const batch = trackUris.slice(i, i + batchSize);
     await spotifyFetch(
       accessToken,
-      `/playlists/${playlistId}/tracks`,
+      `/playlists/${playlistId}/items`,
       {
         method: 'DELETE',
         body: JSON.stringify({
-          tracks: batch.map((uri) => ({ uri })),
+          items: batch.map((uri) => ({ uri })),
         }),
       },
     );
@@ -290,8 +340,7 @@ export async function uploadPlaylistCover(
   });
 
   if (!response.ok) {
-    const body = await response.text();
-    throw new SpotifyApiError(response.status, response.statusText, body);
+    throw new SpotifyApiError(response.status, response.statusText);
   }
 }
 
@@ -376,7 +425,7 @@ export async function searchPlaylists(
   const params = new URLSearchParams({
     q: query,
     type: 'playlist',
-    limit: String(Math.min(limit, 50)),
+    limit: String(Math.min(limit, 10)),
   });
   const response = await spotifyFetch<{
     playlists: SpotifyPaginatedResponse<SpotifyPlaylistRaw>;
