@@ -105,8 +105,8 @@ async function spotifyFetch<T>(
     },
   });
 
-  // Handle 204 No Content (some Spotify endpoints return this)
-  if (response.status === 204) {
+  // Spotify uses 202/204 for successful mutations with no JSON payload.
+  if (response.status === 202 || response.status === 204) {
     return undefined as T;
   }
 
@@ -328,20 +328,11 @@ export async function uploadPlaylistCover(
   playlistId: string,
   imageBase64: string,
 ): Promise<void> {
-  const url = `${BASE_URL}/playlists/${playlistId}/images`;
-
-  const response = await fetch(url, {
+  await spotifyFetch<void>(accessToken, `/playlists/${playlistId}/images`, {
     method: 'PUT',
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      'Content-Type': 'image/jpeg',
-    },
+    headers: { 'Content-Type': 'image/jpeg' },
     body: imageBase64,
   });
-
-  if (!response.ok) {
-    throw new SpotifyApiError(response.status, response.statusText);
-  }
 }
 
 // ============================================================

@@ -6,9 +6,10 @@
     "dev": "next dev --hostname 127.0.0.1",
     "build": "next build",
     "build:webpack": "next build --webpack",
-    "check": "npm run lint && npm run build:webpack",
+    "check": "npm run lint && npm test && npm run build:webpack",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test": "vitest run"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.112.2",
@@ -27,6 +28,7 @@
     "eslint": "^9",
     "eslint-config-next": "16.3.0",
     "tailwindcss": "^4",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "^4.1.10"
   }
 }
